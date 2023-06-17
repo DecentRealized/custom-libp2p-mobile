@@ -18,8 +18,3 @@ binding_ios_x86_64:
 	GOOS=ios GOARCH=amd64 CGO_ENABLED=1 \
 	make binding
 
-binding_ios_armv7:
-	BINDING_FILE=$(IOS_OUTPUT)/armv7.a BUILD_MODE="c-archive" \
-	SDK=iphoneos CC=$(PWD)/clangwrap.sh CGO_CFLAGS="-fembed-bitcode" \
-	GOOS=darwin GOARCH=arm CGO_ENABLED=1 BINDING_ARGS="-tags ios" \
-	make binding
