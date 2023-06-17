@@ -1,6 +1,6 @@
 # custom-libp2p-mobile
 
-- [![Tests and Coverage](https://github.com/DecentRealized/custom-libp2p-mobile/actions/workflows/tests.yml/badge.svg)](https://github.com/DecentRealized/custom-libp2p-mobile/actions/workflows/tests.yml)
+- [![Tests](https://github.com/DecentRealized/custom-libp2p-mobile/actions/workflows/tests.yml/badge.svg)](https://github.com/DecentRealized/custom-libp2p-mobile/actions/workflows/tests.yml)
 
 - [![Coverage Status](https://coveralls.io/repos/github/DecentRealized/custom-libp2p-mobile/badge.svg)](https://coveralls.io/github/DecentRealized/custom-libp2p-mobile)
 
