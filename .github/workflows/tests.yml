@@ -20,16 +20,3 @@ jobs:
           go-version: ${{ matrix.go }}
       - name: Tests
         run: make test
-      - uses: shogo82148/actions-goveralls@v1
-        with:
-          path-to-profile: profile.cov
-          flag-name: Go-${{ matrix.go }}
-          parallel: true
-
-  finish:
-    needs: tests
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: shogo82148/actions-goveralls@v1
-        with:
-          parallel-finished: true
