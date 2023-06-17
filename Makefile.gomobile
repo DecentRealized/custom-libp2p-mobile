@@ -1,0 +1,27 @@
+GOMOBILE_BRIDGE_PACKAGE?=github.com/DecentRealized/custom-libp2p-mobile/bridge
+GOMOBILE_BRIDGE_NAME?=CustomLibP2PBridge
+GOMOBILE_PACKAGE?=github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p
+GOMOBILE_NAME?=CustomLibP2P
+
+gomobile:
+	go install golang.org/x/mobile/cmd/gomobile@latest
+	go install golang.org/x/mobile/cmd/gobind@latest
+	go get golang.org/x/mobile/cmd/gobind
+	go get golang.org/x/mobile/cmd/gomobile
+	gomobile init
+
+gomobile_bridge_android:
+	mkdir -p output/android
+	gomobile bind -ldflags="-w -s" -target=android -o output/android/$(GOMOBILE_BRIDGE_NAME).aar $(GOMOBILE_BRIDGE_PACKAGE)
+
+gomobile_bridge_ios:
+	mkdir -p output/ios
+	gomobile bind -ldflags="-w -s" -target=ios,iossimulator,macos,maccatalyst -o output/ios/$(GOMOBILE_BRIDGE_NAME).xcframework $(GOMOBILE_BRIDGE_PACKAGE)
+
+gomobile_android:
+	mkdir -p output/android
+	gomobile bind -ldflags="-w -s" -target=android -o output/android/$(GOMOBILE_NAME).aar $(GOMOBILE_PACKAGE)
+
+gomobile_ios:
+	mkdir -p output/ios
+	gomobile bind -ldflags="-w -s" -target=ios,iossimulator,macos,maccatalyst -o output/ios/$(GOMOBILE_NAME).xcframework $(GOMOBILE_PACKAGE)

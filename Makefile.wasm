@@ -1,0 +1,17 @@
+.PHONY: wasm
+TINYGO_ROOT?=`tinygo env TINYGOROOT`
+GO_ROOT?=`go env GOROOT`
+
+wasm_tinygo:
+	mkdir -p output/wasm
+	tinygo build -tags=math_big_pure_go -o output/wasm/customLibP2P.wasm -target wasm wasm/main.go
+	cp $(TINYGO_ROOT)/targets/wasm_exec.js  output/wasm/wasm_exec.js
+	cp output/wasm/customLibP2P.wasm wasm/example/public/customLibP2P.wasm
+	cp output/wasm/wasm_exec.js  wasm/example/public/wasm_exec.js
+
+wasm:
+	mkdir -p output/wasm
+	cd wasm && GOARCH=wasm GOOS=js go build -ldflags="-s -w" -o ../output/wasm/customLibP2P.wasm main.go
+	cp $(GO_ROOT)/misc/wasm/wasm_exec.js  output/wasm/wasm_exec.js
+	cp output/wasm/customLibP2P.wasm wasm/example/public/customLibP2P.wasm
+	cp output/wasm/wasm_exec.js  wasm/example/public/wasm_exec.js

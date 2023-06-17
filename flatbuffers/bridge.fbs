@@ -1,0 +1,30 @@
+namespace model;
+
+table GetHelloMessageRequest {
+    user_name: string;
+}
+
+table StringResponse {
+  output:string;
+  error:string;
+}
+
+table BytesResponse {
+  output:[ubyte];
+  error:string;
+}
+
+table BoolResponse {
+  output:bool;
+  error:string;
+}
+
+table KeyPairResponse {
+  output:model.KeyPair;
+  error:string;
+}
+
+table KeyPair {
+  private_key:string;
+  public_key:string;
+}
