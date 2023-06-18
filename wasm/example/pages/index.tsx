@@ -1,6 +1,6 @@
 import type {NextPage} from 'next'
 import {HelloWorldSample} from "./caller";
-import {useEffect, useState} from "react";
+import {useState} from "react";
 
 const Home: NextPage = () => {
     const [state, setState] = useState({
