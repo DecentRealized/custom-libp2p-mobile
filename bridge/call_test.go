@@ -10,7 +10,7 @@ import (
 func TestCall(t *testing.T) {
 	requestPayload := flatbuffers.NewBuilder(0)
 	userName := "Test Caller 2"
-	userNameFlatbuff := requestPayload.CreateString("Test Caller 2")
+	userNameFlatbuff := requestPayload.CreateString(userName)
 	model.GetHelloMessageRequestStart(requestPayload)
 	model.GetHelloMessageRequestAddUserName(requestPayload, userNameFlatbuff)
 	requestPayload.Finish(model.GetHelloMessageRequestEnd(requestPayload))

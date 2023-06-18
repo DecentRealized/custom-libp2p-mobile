@@ -8,6 +8,7 @@ load = () => {
     fetch("customLibP2P.wasm"),
     go.importObject
   ).then(async (result) => {
+
     mod = result.module;
     inst = result.instance;
     const run = async () => {
@@ -18,11 +19,11 @@ load = () => {
       } catch (e) {
         console.warn(e);
         self.loaded = false;
-        load();
+        await load();
       }
     };
     run();
-  });
+  })
 };
 
 onmessage = async ({ data }) => {
@@ -31,15 +32,13 @@ onmessage = async ({ data }) => {
   }
 
   const { request, name, id } = data;
-
   try {
-    customLibP2PBridgeCall(name, request, request.length, (error, response) => {
+    customLibP2PBridge(name, request, request.length, (error, response) => {
       const payload = {
         id,
         response,
         error,
       };
-
       postMessage(payload);
     });
   } catch (e) {
