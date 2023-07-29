@@ -14,6 +14,7 @@ deps:
 
 test:
 	go test ./custom-libp2p/... -coverprofile=profile.cov -cover -short -count 1
+	go test ./bridge/adapter/... -coverprofile=profile.cov -cover -short -count 1
 
 fmt:
 	go fmt ./...

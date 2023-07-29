@@ -20,18 +20,34 @@ static getSizePrefixedRootAsKeyPair(bb:flatbuffers.ByteBuffer, obj?:KeyPair):Key
   return (obj || new KeyPair()).__init(bb.readInt32(bb.position()) + bb.position(), bb);
 }
 
-privateKey():string|null
-privateKey(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
-privateKey(optionalEncoding?:any):string|Uint8Array|null {
+privateKey(index: number):number|null {
   const offset = this.bb!.__offset(this.bb_pos, 4);
-  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+  return offset ? this.bb!.readUint8(this.bb!.__vector(this.bb_pos + offset) + index) : 0;
 }
 
-publicKey():string|null
-publicKey(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
-publicKey(optionalEncoding?:any):string|Uint8Array|null {
+privateKeyLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 4);
+  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
+}
+
+privateKeyArray():Uint8Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 4);
+  return offset ? new Uint8Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
+}
+
+publicKey(index: number):number|null {
   const offset = this.bb!.__offset(this.bb_pos, 6);
-  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+  return offset ? this.bb!.readUint8(this.bb!.__vector(this.bb_pos + offset) + index) : 0;
+}
+
+publicKeyLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 6);
+  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
+}
+
+publicKeyArray():Uint8Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 6);
+  return offset ? new Uint8Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
 }
 
 static startKeyPair(builder:flatbuffers.Builder) {
@@ -42,8 +58,32 @@ static addPrivateKey(builder:flatbuffers.Builder, privateKeyOffset:flatbuffers.O
   builder.addFieldOffset(0, privateKeyOffset, 0);
 }
 
+static createPrivateKeyVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset {
+  builder.startVector(1, data.length, 1);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addInt8(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startPrivateKeyVector(builder:flatbuffers.Builder, numElems:number) {
+  builder.startVector(1, numElems, 1);
+}
+
 static addPublicKey(builder:flatbuffers.Builder, publicKeyOffset:flatbuffers.Offset) {
   builder.addFieldOffset(1, publicKeyOffset, 0);
+}
+
+static createPublicKeyVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset {
+  builder.startVector(1, data.length, 1);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addInt8(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startPublicKeyVector(builder:flatbuffers.Builder, numElems:number) {
+  builder.startVector(1, numElems, 1);
 }
 
 static endKeyPair(builder:flatbuffers.Builder):flatbuffers.Offset {

@@ -2,60 +2,50 @@ package custom_libp2p_bridge
 
 import (
 	"fmt"
-	"github.com/DecentRealized/custom-libp2p-mobile/bridge/model"
-	customLibP2P "github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p"
-	flatbuffers "github.com/google/flatbuffers/go"
+	"github.com/DecentRealized/custom-libp2p-mobile/bridge/adapter"
 )
 
 // Call ...
 func Call(name string, payload []byte) ([]byte, error) {
-
-	instance := NewInstance()
 	var output []byte
 	switch name {
 	case "getHelloWorld":
-		output = instance.getHelloWorld(payload)
+		output = adapter.GetHelloWorld(payload)
+	case "createKeyPair":
+		output = adapter.CreateKeyPair()
+	case "createNode":
+		output = adapter.CreateNode(payload)
+	case "getNodeId":
+		output = adapter.GetNodeId()
+	case "getListenAddresses":
+		output = adapter.GetListenAddresses()
+	case "allowNode":
+		output = adapter.AllowNode(payload)
+	case "isAllowedNode":
+		output = adapter.IsAllowedNode(payload)
+	case "getAllowedNodes":
+		output = adapter.GetAllowedNodes()
+	case "denyNode":
+		output = adapter.DenyNode(payload)
+	case "serveFile":
+		output = adapter.ServeFile(payload)
+	case "stopServingFile":
+		output = adapter.StopServingFile(payload)
+	case "sendMessage":
+		output = adapter.SendMessage(payload)
+	case "pauseDownload":
+		output = adapter.PauseDownload(payload)
+	case "resumeDownload":
+		output = adapter.ResumeDownload(payload)
+	case "stopDownload":
+		output = adapter.StopDownload(payload)
+	case "getDownloadStatus":
+		output = adapter.GetDownloadStatus(payload)
+	case "stopNode":
+		output = adapter.StopNode()
 	default:
 		return nil, fmt.Errorf("not implemented: %s", name)
 	}
 
 	return output, nil
-}
-
-type instance struct {
-	instance *customLibP2P.CustomLibP2P
-}
-
-func NewInstance() *instance {
-	return &instance{instance: customLibP2P.NewCustomLibP2P()}
-}
-
-func (m instance) getHelloWorld(payload []byte) []byte {
-	response := flatbuffers.NewBuilder(0)
-	request := model.GetRootAsGetHelloMessageRequest(payload, 0)
-	output, err := m.instance.GetHelloMessage(m.toString(request.UserName()))
-	return m._stringResponse(response, output, err)
-}
-
-func (m instance) _stringResponse(response *flatbuffers.Builder, output string, err error) []byte {
-	if err != nil {
-		outputOffset := response.CreateString(err.Error())
-		model.StringResponseStart(response)
-		model.StringResponseAddError(response, outputOffset)
-		response.Finish(model.StringResponseEnd(response))
-		return response.FinishedBytes()
-	}
-	outputOffset := response.CreateString(output)
-	model.StringResponseStart(response)
-	model.StringResponseAddOutput(response, outputOffset)
-	response.Finish(model.StringResponseEnd(response))
-	return response.FinishedBytes()
-}
-
-func (m instance) toString(input []byte) string {
-	if input == nil {
-		return ""
-	}
-
-	return string(input)
 }

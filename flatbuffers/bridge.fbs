@@ -1,30 +1,69 @@
 namespace model;
 
-table GetHelloMessageRequest {
-    user_name: string;
+table StringRequest {
+	input: string;
+}
+
+table CreateNodeRequest {
+	private_key: [ubyte];
+	use_internet: bool;
+}
+
+table ServeFileRequest {
+	file_path: string;
+	peer_id: string;
+}
+
+table SendMessageRequest {
+	message: string;
+	peer_id: string;
+}
+
+table DownloadRequest {
+	file_sha256: string;
+	peer_id: string;
 }
 
 table StringResponse {
-  output:string;
-  error:string;
+	output: string;
+	error: string;
+}
+
+table StringArrayResponse {
+	output: [string];
+	error: string;
 }
 
 table BytesResponse {
-  output:[ubyte];
-  error:string;
+	output: [ubyte];
+	error: string;
 }
 
 table BoolResponse {
-  output:bool;
-  error:string;
+	output: bool;
+	error: string;
 }
 
 table KeyPairResponse {
-  output:model.KeyPair;
-  error:string;
+	output: model.KeyPair;
+	error: string;
+}
+
+table DownloadStatusResponse {
+	output: model.DownloadStatus;
+	error: string;
 }
 
 table KeyPair {
-  private_key:string;
-  public_key:string;
+	private_key: [ubyte];
+	public_key: [ubyte];
+}
+
+table DownloadStatus {
+	downloading: bool;
+	file_base_path: string;
+	file_name: string;
+	file_sha_256: string;
+	full_file_size: uint64;
+	current_file_size: uint64;
 }
