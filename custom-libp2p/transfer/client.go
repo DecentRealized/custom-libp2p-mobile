@@ -240,6 +240,8 @@ func downloadFile(key string) {
 		res, err := _instance.client.client.Get(url)
 		if err != nil {
 			log.Printf("Error in Downloading GET: %v", err)
+			_instance.client.isDownloading.Store(key, false)
+			continue
 		}
 		if res.StatusCode == http.StatusOK {
 			n, _ := io.CopyN(file, res.Body, int64(metadata.fileSize-uint64(fStat.Size())))

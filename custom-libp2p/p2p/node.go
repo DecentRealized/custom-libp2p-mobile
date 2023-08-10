@@ -9,6 +9,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	routedhost "github.com/libp2p/go-libp2p/p2p/host/routed"
 	"github.com/multiformats/go-multiaddr"
+	"log"
 )
 
 // CreateNode Destroys existing node if present and creates new
@@ -23,24 +24,25 @@ func CreateNode(privateKey crypto.PrivKey, useInternet bool) error {
 		}
 		singletonInstance.node = nil
 	}
-	_node, err := libp2p.New(getOptions(privateKey, useInternet)...)
+	_node, err := libp2p.New(getOptions(privateKey, useInternet)...) // Critical
 	if err != nil {
 		return err
 	}
-	dht, err := newDHTRouting(_node)
+	dht, err := newDHTRouting(_node) // Critical
 	if err != nil {
 		return err
 	}
-	err = newMDNSService(_node)
+	err = newMDNSService(_node) // Non-Critical TODO: Notification to frontend mechanism
 	if err != nil {
+		log.Printf("Error making mdns: %v", err)
 		return err
 	}
 	node := &custom_libp2p.Node{RoutedHost: *routedhost.Wrap(_node, dht)}
-	if err != nil {
+	if err != nil { // Critical
 		return err
 	}
 	if useInternet {
-		connectToBootstrapNodes(node, context.TODO())
+		connectToBootstrapNodes(node, context.TODO()) // Non-Critical
 	}
 	singletonInstance.node = node
 	transfer.Init(node)
