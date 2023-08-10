@@ -50,7 +50,9 @@ func connectToBootstrapNodes(node host.Host, ctx context.Context) {
 func getOptions(privateKey crypto.PrivKey, useInternet bool) []libp2p.Option {
 	options := []libp2p.Option{libp2p.Identity(privateKey)}
 	if useInternet {
-		options = append(options, libp2p.EnableHolePunching(holepunch.WithTracer(&HolePunchEventTracer{})))
+		options = append(options,
+			libp2p.EnableHolePunching(holepunch.WithTracer(&HolePunchEventTracer{})),
+			libp2p.EnableAutoRelayWithStaticRelays(GetDefaultBootstrapPeerAddrInfos()))
 	} else {
 		options = append(options, libp2p.AddrsFactory(filterPublicAddresses))
 	}
