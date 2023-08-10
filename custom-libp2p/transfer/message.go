@@ -1,6 +1,5 @@
 package transfer
 
-import "C"
 import (
 	"bytes"
 	"encoding/binary"
