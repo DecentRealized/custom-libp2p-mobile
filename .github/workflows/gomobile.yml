@@ -63,7 +63,7 @@ jobs:
           path: output.tar.gz
 
   ios:
-    runs-on: macos-11
+    runs-on: macos-13
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4
