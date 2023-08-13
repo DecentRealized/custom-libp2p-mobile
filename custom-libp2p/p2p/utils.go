@@ -9,9 +9,8 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
+	"github.com/libp2p/go-libp2p/p2p/host/autorelay"
 	"github.com/libp2p/go-libp2p/p2p/protocol/holepunch"
-	"github.com/multiformats/go-multiaddr"
-	manet "github.com/multiformats/go-multiaddr/net"
 	"log"
 	"sync"
 )
@@ -48,25 +47,13 @@ func connectToBootstrapNodes(node host.Host, ctx context.Context) {
 }
 
 func getOptions(privateKey crypto.PrivKey, useInternet bool) []libp2p.Option {
-	options := []libp2p.Option{libp2p.Identity(privateKey)}
+	options := []libp2p.Option{libp2p.Identity(privateKey), libp2p.ForceReachabilityPrivate()}
 	if useInternet {
 		options = append(options,
 			libp2p.EnableHolePunching(holepunch.WithTracer(&HolePunchEventTracer{})),
-			libp2p.EnableAutoRelayWithStaticRelays(GetDefaultBootstrapPeerAddrInfos()))
-	} else {
-		options = append(options, libp2p.AddrsFactory(filterPublicAddresses))
+			libp2p.EnableAutoRelayWithStaticRelays(GetDefaultBootstrapPeerAddrInfos(), autorelay.WithBootDelay(0)))
 	}
 	return options
-}
-
-func filterPublicAddresses(addrs []multiaddr.Multiaddr) []multiaddr.Multiaddr {
-	filteredAddrs := make([]multiaddr.Multiaddr, 0, len(addrs))
-	for _, addr := range addrs {
-		if !manet.IsPublicAddr(addr) {
-			filteredAddrs = append(filteredAddrs, addr)
-		}
-	}
-	return filteredAddrs
 }
 
 // newDHTRouting initializes DHT
@@ -92,7 +79,6 @@ type mdnsNotifee struct {
 
 func (mn mdnsNotifee) HandlePeerFound(foundPeer peer.AddrInfo) {
 	mn.peerStore.AddAddrs(foundPeer.ID, foundPeer.Addrs, peerstore.PermanentAddrTTL)
-	log.Println(mn.peerStore.PeerInfo(foundPeer.ID))
 }
 
 type HolePunchEventTracer struct {
