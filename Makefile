@@ -1,7 +1,7 @@
 BUILD_MODE?=c-shared
 OUTPUT_DIR?=output
 GO_BINARY?=go
-BINDING_NAME?=custom_libp2p_bridge
+BINDING_NAME?=libcustom_libp2p_bridge
 BINDING_FILE?=$(BINDING_NAME).so
 BINDING_ARGS?=
 BINDING_OUTPUT?=$(OUTPUT_DIR)/binding
