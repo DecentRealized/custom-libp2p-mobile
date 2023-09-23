@@ -2,6 +2,11 @@ package p2p
 
 import (
 	"context"
+	"fmt"
+	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/config"
+	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/models"
+	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/notifier"
+	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/utils"
 	"github.com/libp2p/go-libp2p"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -11,35 +16,22 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
 	"github.com/libp2p/go-libp2p/p2p/host/autorelay"
 	"github.com/libp2p/go-libp2p/p2p/protocol/holepunch"
-	"log"
+	"github.com/multiformats/go-multiaddr"
+	manet "github.com/multiformats/go-multiaddr/net"
 	"sync"
 )
 
-func GetDefaultBootstrapPeerAddrInfos() []peer.AddrInfo {
-	ds := make([]peer.AddrInfo, 0, len(bootstrapAddrs))
-
-	for i := range bootstrapAddrs {
-		info, err := peer.AddrInfoFromString(bootstrapAddrs[i])
-		if err != nil {
-			log.Printf("failed to convert bootstrapper address to peer addr info: %v", err)
-			continue
-		}
-		ds = append(ds, *info)
-	}
-	return ds
-}
-
 func connectToBootstrapNodes(node host.Host, ctx context.Context) {
 	var wg sync.WaitGroup
-	for _, peerInfo := range GetDefaultBootstrapPeerAddrInfos() {
+	for _, peerInfo := range utils.GetDefaultBootstrapPeerAddrInfos() {
 		wg.Add(1)
 		peerInfo := peerInfo
 		go func() {
 			defer wg.Done()
 			if err := node.Connect(ctx, peerInfo); err != nil {
-				log.Printf("Failed to connect to bootstrap node (%v): %s", peerInfo, err)
+				notifier.QueueWarning(&models.Warning{Error: err.Error(), Info: "Failed to connect to bootstrap node"})
 			} else {
-				log.Printf("Connection established with bootstrap node: %v", peerInfo)
+				notifier.QueueInfo(fmt.Sprintf("Connection established with bootstrap node: %v", peerInfo))
 			}
 		}()
 	}
@@ -51,14 +43,28 @@ func getOptions(privateKey crypto.PrivKey, useInternet bool) []libp2p.Option {
 	if useInternet {
 		options = append(options,
 			libp2p.EnableHolePunching(holepunch.WithTracer(&HolePunchEventTracer{})),
-			libp2p.EnableAutoRelayWithStaticRelays(GetDefaultBootstrapPeerAddrInfos(), autorelay.WithBootDelay(0)))
+			libp2p.EnableAutoRelayWithStaticRelays(utils.GetDefaultBootstrapPeerAddrInfos(),
+				autorelay.WithBootDelay(0)))
+	} else {
+		options = append(options, libp2p.AddrsFactory(noInternetAddressFactory))
 	}
 	return options
 }
 
+// noInternetAddressFactory Filters public internet addresses
+func noInternetAddressFactory(addresses []multiaddr.Multiaddr) []multiaddr.Multiaddr {
+	var retVal []multiaddr.Multiaddr
+	for _, addr := range addresses {
+		if !manet.IsPublicAddr(addr) {
+			retVal = append(retVal, addr)
+		}
+	}
+	return retVal
+}
+
 // newDHTRouting initializes DHT
-func newDHTRouting(node host.Host) (*dht.IpfsDHT, error) {
-	ipfsDHT, err := dht.New(context.TODO(), node, dht.Mode(dht.ModeAuto))
+func newDHTRouting(node *host.Host) (*dht.IpfsDHT, error) {
+	ipfsDHT, err := dht.New(context.TODO(), *node, dht.Mode(dht.ModeAuto))
 	if err != nil {
 		return nil, err
 	}
@@ -66,24 +72,26 @@ func newDHTRouting(node host.Host) (*dht.IpfsDHT, error) {
 }
 
 // newMDNSService Initialize the MDNS service
-func newMDNSService(node host.Host) error {
-	mn := mdnsNotifee{peerStore: node.Peerstore()}
-	ser := mdns.NewMdnsService(node, mdnsRendezvous, mn)
+func newMDNSService(node *host.Host) error {
+	mn := mdnsNotifee{node}
+	ser := mdns.NewMdnsService(*node, config.MdnsRendezvous, mn)
 	err := ser.Start()
 	return err
 }
 
 type mdnsNotifee struct {
-	peerStore peerstore.Peerstore
+	node *host.Host
 }
 
 func (mn mdnsNotifee) HandlePeerFound(foundPeer peer.AddrInfo) {
-	mn.peerStore.AddAddrs(foundPeer.ID, foundPeer.Addrs, peerstore.PermanentAddrTTL)
+	node := *mn.node
+	node.Peerstore().AddAddrs(foundPeer.ID, foundPeer.Addrs, peerstore.PermanentAddrTTL)
+	notifier.QueueInfo(fmt.Sprintf("Found peer via MDNS: %v", foundPeer.ID))
 }
 
 type HolePunchEventTracer struct {
 }
 
 func (t HolePunchEventTracer) Trace(event *holepunch.Event) {
-	log.Printf("Hole punch Evt [%v] From [%v]: %v", event.Type, event.Remote, event.Evt)
+	notifier.QueueInfo(fmt.Sprintf("Hole punch Evt [%v] From [%v]", event.Type, event.Remote))
 }

@@ -1,61 +1,61 @@
 package transfer
 
 import (
-	customLibP2P "github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p"
+	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/models"
 	"sync"
 )
 
-var _instanceLock = &sync.Mutex{}
-
-type instance struct {
-	node    *customLibP2P.Node
-	server  *server
-	client  *client
-	running bool
-}
-
-var singletonInstance *instance
-
-// getInstance get Instance of transfer
-func getInstance() *instance {
-	if singletonInstance == nil {
-		_instanceLock.Lock()
-		defer _instanceLock.Unlock()
-		if singletonInstance == nil {
-			singletonInstance = &instance{
-				server: &server{},
-				client: &client{},
-			}
-		}
-	}
-	return singletonInstance
-}
+var _node *models.Node
+var _server = &server{}
+var _serverLock = &sync.Mutex{}
+var _client = &client{}
+var _clientLock = &sync.Mutex{}
 
 // Init initializes transfer service
-func Init(node *customLibP2P.Node) {
-	_instance := getInstance()
-	_instanceLock.Lock()
-	defer _instanceLock.Unlock()
-	_instance.node = node
-	initServer(node)
-	initClient(node)
-	_instance.running = true
-}
-
-// Close closes transfer service
-func Close() error {
-	_instanceLock.Lock()
-	defer _instanceLock.Unlock()
-	if singletonInstance != nil {
-		err := closeServer()
-		if err != nil {
-			return err
-		}
-		err = closeClient()
+func Init(node *models.Node) error {
+	_clientLock.Lock()
+	_serverLock.Lock()
+	defer _clientLock.Unlock()
+	defer _serverLock.Unlock()
+	if ServerIsRunning() && ClientIsRunning() {
+		_clientLock.Unlock()
+		_serverLock.Unlock()
+		err := Close()
+		_clientLock.Lock()
+		_serverLock.Lock()
 		if err != nil {
 			return err
 		}
 	}
-	singletonInstance.running = false
+	_node = node
+	err := initServer(node)
+	if err != nil {
+		return err
+	}
+	err = initClient(node)
+	if err != nil {
+		return err
+	}
 	return nil
+}
+
+// Close closes transfer service (client and server)
+func Close() error {
+	err := closeServer()
+	if err != nil {
+		return err
+	}
+	err = closeClient()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func ServerIsRunning() bool {
+	return !(_server == nil || _server.server == nil)
+}
+
+func ClientIsRunning() bool {
+	return !(_client == nil || _client.client == nil)
 }

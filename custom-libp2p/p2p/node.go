@@ -2,62 +2,74 @@ package p2p
 
 import (
 	"context"
-	custom_libp2p "github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p"
+	"fmt"
+	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/file_handler"
+	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/models"
+	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/notifier"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/transfer"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	routedhost "github.com/libp2p/go-libp2p/p2p/host/routed"
 	"github.com/multiformats/go-multiaddr"
-	"log"
 )
 
 // CreateNode Destroys existing node if present and creates new
 func CreateNode(privateKey crypto.PrivKey, useInternet bool) error {
-	getInstance()
-	_instanceLock.Lock()
-	defer _instanceLock.Unlock()
-	if singletonInstance.node != nil {
-		err := singletonInstance.node.Close()
+	// Create Node
+	_nodeLock.Lock()
+	defer _nodeLock.Unlock()
+	if node != nil {
+		_nodeLock.Unlock()
+		err := StopNode()
+		_nodeLock.Lock()
 		if err != nil {
 			return err
 		}
-		singletonInstance.node = nil
 	}
 	_node, err := libp2p.New(getOptions(privateKey, useInternet)...) // Critical
 	if err != nil {
 		return err
 	}
-	dht, err := newDHTRouting(_node) // Critical
+	dht, err := newDHTRouting(&_node) // Critical
 	if err != nil {
 		return err
 	}
-	err = newMDNSService(_node) // Non-Critical TODO: Notification to frontend mechanism
+	err = newMDNSService(&_node)
 	if err != nil {
-		log.Printf("Error making mdns: %v", err)
-		return err
+		notifier.QueueWarning(&models.Warning{Error: err.Error(), Info: "Failed to create MDNS service"})
 	}
-	node := &custom_libp2p.Node{RoutedHost: *routedhost.Wrap(_node, dht)}
+	node = &models.Node{RoutedHost: *routedhost.Wrap(_node, dht)}
 	if err != nil { // Critical
 		return err
 	}
 	if useInternet {
 		connectToBootstrapNodes(node, context.TODO()) // Non-Critical
 	}
-	singletonInstance.node = node
-	transfer.Init(node)
+	// Initialize Other Modules
+	err = transfer.Init(node)
+	if err != nil {
+		return err
+	}
+
+	notifier.QueueInfo(fmt.Sprintf("Node with ID %s created", node.ID()))
 	return nil
 }
 
 // StopNode Destroys existing node
 func StopNode() error {
-	getInstance()
-	_instanceLock.Lock()
-	defer _instanceLock.Unlock()
-	if singletonInstance.node == nil {
-		return NodeDoesNotExist
+	_nodeLock.Lock()
+	defer _nodeLock.Unlock()
+	if node == nil {
+		return ErrNodeDoesNotExist
 	}
-	err := singletonInstance.node.Close()
+	err := node.Close()
+	if err != nil {
+		return err
+	}
+
+	// Close/Reset All Modules
+	err = notifier.Reset()
 	if err != nil {
 		return err
 	}
@@ -65,24 +77,24 @@ func StopNode() error {
 	if err != nil {
 		return err
 	}
-	singletonInstance.node = nil
+	err = file_handler.Reset()
+
+	node = nil
 	return nil
 }
 
 // GetNodeId Returns node id
 func GetNodeId() (peer.ID, error) {
-	instance := getInstance()
-	if instance.node != nil {
-		return instance.node.ID(), nil
+	if node != nil {
+		return node.ID(), nil
 	}
-	return "", NodeDoesNotExist
+	return "", ErrNodeDoesNotExist
 }
 
 // GetListenAddresses Returns listen addresses
 func GetListenAddresses() ([]multiaddr.Multiaddr, error) {
-	instance := getInstance()
-	if instance.node != nil {
-		return instance.node.Addrs(), nil
+	if node != nil {
+		return node.Addrs(), nil
 	}
-	return nil, NodeDoesNotExist
+	return nil, ErrNodeDoesNotExist
 }

@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package models;
+option go_package = "./models";
+
+message StringMessage {
+  string message = 1;
+}
+
+message StringArrayMessage {
+  repeated string message = 1;
+}

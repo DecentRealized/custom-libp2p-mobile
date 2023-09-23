@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package models;
+option go_package = "./models";
+
+message CreateNodeRequest {
+  bool use_internet = 1;
+  bytes private_key = 2;
+}
+
+message ServeFileRequest {
+  string file_path = 1;
+  string peer_id = 2;
+}
+
+message SendMessageRequest {
+  string peer_id = 1;
+  string message = 2;
+}
+
+message DownloadRequest {
+  string peer_id = 1;
+  string file_sha256 = 2;
+}

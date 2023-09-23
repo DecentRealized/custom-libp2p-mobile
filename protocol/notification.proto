@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package models;
+option go_package = "./models";
+
+import "message.proto";
+import "warning.proto";
+
+message Notification {
+  oneof data {
+    Warning warning_notification = 1;
+    string info_notification = 2;
+    Message message_notification = 3;
+  }
+}
+
+message Notifications {
+  repeated Notification notification = 1;
+}

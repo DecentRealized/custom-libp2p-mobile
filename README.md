@@ -6,7 +6,7 @@
 
 # Status
 
-- [![Build FlatBuffers](https://github.com/DecentRealized/custom-libp2p-mobile/actions/workflows/flatbuffers.yml/badge.svg)](https://github.com/DecentRealized/custom-libp2p-mobile/actions/workflows/flatbuffers.yml)
+- [![Build Protocol Buffers](https://github.com/DecentRealized/custom-libp2p-mobile/actions/workflows/protobuf.yml/badge.svg)](https://github.com/DecentRealized/custom-libp2p-mobile/actions/workflows/protobuf.yml)
 
 - [![Build Windows](https://github.com/DecentRealized/custom-libp2p-mobile/actions/workflows/windows.yml/badge.svg)](https://github.com/DecentRealized/custom-libp2p-mobile/actions/workflows/windows.yml)
 

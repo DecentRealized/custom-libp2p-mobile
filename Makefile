@@ -14,7 +14,7 @@ deps:
 
 test:
 	go test ./custom-libp2p/... -coverprofile=profile.cov -cover -short -count 1
-	go test ./bridge/adapter/... -coverprofile=profile.cov -cover -short -count 1
+	go test ./bridge/... -short -count 1
 
 fmt:
 	go fmt ./...
@@ -33,4 +33,4 @@ include Makefile.linux
 include Makefile.windows
 include Makefile.gomobile
 include Makefile.wasm
-include Makefile.flatbuffers
+include Makefile.protobuf
