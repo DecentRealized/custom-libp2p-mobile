@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package models;
+option go_package = "./models";
+
+message KeyPair {
+  bytes publicKey = 1;
+  bytes privateKey = 2;
+}

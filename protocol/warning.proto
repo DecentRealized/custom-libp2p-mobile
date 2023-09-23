@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package models;
+option go_package = "./models";
+
+message Warning {
+  string error = 1;
+  string info = 2;
+}

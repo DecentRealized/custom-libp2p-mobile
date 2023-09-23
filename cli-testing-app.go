@@ -4,10 +4,12 @@ import (
 	"bufio"
 	"fmt"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/example"
+	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/notifier"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/p2p"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/transfer"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"log"
 	"os"
 	"strings"
 )
@@ -24,17 +26,18 @@ const helpString string = "" +
 	"3.  createRandomNode:   creates random node\n" +
 	"4.  getNodeId:          get node id of running node\n" +
 	"5.  getListenAddresses: get listen addresses of running node\n" +
-	"6.  stopNode:           stop running node\n" +
-	"7.  serveFile:          serve file to peer from running node\n" +
-	"8.  stopServeFile:      stop serving file with SHA256\n" +
-	"9.  sendMessage:        send message to peer from running node\n" +
-	"10. pauseDownload:      pause downloading file with SHA256 from peer\n" +
-	"11. resumeDownload:     resume downloading file with SHA256 from peer\n" +
-	"12. stopDownload:       stop downloading file with SHA256 from peer\n" +
-	"13. getDownloadStatus:  get status of downloading file with SHA256 from peer\n" +
-	"14. setVar (s):         set variables for debug purposes (use using {varName})\n" +
-	"15. help   (h):         show help\n" +
-	"16. quit   (q):         stop program\n"
+	"6.  serveFile:          serve file to peer from running node\n" +
+	"7.  stopServeFile:      stop serving file with SHA256\n" +
+	"8.  sendMessage:        send message to peer from running node\n" +
+	"9.  pauseDownload:      pause downloading file with SHA256 from peer\n" +
+	"10. resumeDownload:     resume downloading file with SHA256 from peer\n" +
+	"11. stopDownload:       stop downloading file with SHA256 from peer\n" +
+	"12. getDownloadStatus:  get status of downloading file with SHA256 from peer\n" +
+	"13. flushNotifications: flush notifications asynchronously\n" +
+	"14. stopNode:           stop running node\n" +
+	"15. setVar (s):         set variables for debug purposes (use using {varName})\n" +
+	"16. help   (h):         show help\n" +
+	"17. quit   (q):         stop program\n"
 
 var mapVar = make(map[string]string)
 
@@ -62,38 +65,41 @@ func main() {
 		case "5", "getListenAddresses":
 			handleGetListenAddresses()
 			break
-		case "6", "stopNode":
-			handleStopNode()
-			break
-		case "7", "serveFile":
+		case "6", "serveFile":
 			handleServeFile()
 			break
-		case "8", "stopServeFile":
+		case "7", "stopServeFile":
 			handleStopServeFile()
 			break
-		case "9", "sendMessage":
+		case "8", "sendMessage":
 			handleSendMessage()
 			break
-		case "10", "pauseDownload":
+		case "9", "pauseDownload":
 			handlePauseDownload()
 			break
-		case "11", "resumeDownload":
+		case "10", "resumeDownload":
 			handleResumeDownload()
 			break
-		case "12", "stopDownload":
+		case "11", "stopDownload":
 			handleStopDownload()
 			break
-		case "13", "getDownloadStatus":
+		case "12", "getDownloadStatus":
 			handleGetDownloadStatus()
 			break
-		case "14", "setVar", "s":
+		case "13", "flushNotifications", "flush", "print", "f":
+			handleFlushNotifications()
+			break
+		case "14", "stopNode":
+			handleStopNode()
+			break
+		case "15", "setVar", "s":
 			handleSetVar()
 			break
-		case "15", "help", "h":
+		case "16", "help", "h":
 			fmt.Print(helpString)
 			fmt.Println(colorGreen + "Success" + colorReset)
 			break
-		case "16", "quit", "q":
+		case "17", "quit", "q":
 			running = false
 			fmt.Println(colorGreen + "Success" + colorReset)
 			break
@@ -182,15 +188,6 @@ func handleGetListenAddresses() {
 		return
 	}
 	fmt.Println(fmt.Sprintf("\t%v", listenAddresses))
-	fmt.Println(colorGreen + "\tSuccess" + colorReset)
-}
-
-func handleStopNode() {
-	err := p2p.StopNode()
-	if err != nil {
-		fmt.Println(colorRed + fmt.Sprintf("\tError: %v", err) + colorReset)
-		return
-	}
 	fmt.Println(colorGreen + "\tSuccess" + colorReset)
 }
 
@@ -310,6 +307,31 @@ func handleGetDownloadStatus() {
 		return
 	}
 	fmt.Println(status)
+}
+
+func handleFlushNotifications() {
+	fmt.Println(colorYellow + "\tFlushing notifications..." + colorReset)
+	go func() {
+		flushed, err := notifier.FlushNotifications()
+		if err != nil {
+			fmt.Println(colorRed + fmt.Sprintf("\tError Flush: %v", err) + colorReset)
+			return
+		}
+		fmt.Printf(colorReset)
+		for i := range flushed.GetNotification() {
+			log.Printf("\tFlushed: %v", flushed.GetNotification()[i])
+		}
+		log.Println(colorGreen + "\tFlushNotifications: Success" + colorReset)
+	}()
+}
+
+func handleStopNode() {
+	err := p2p.StopNode()
+	if err != nil {
+		fmt.Println(colorRed + fmt.Sprintf("\tError: %v", err) + colorReset)
+		return
+	}
+	fmt.Println(colorGreen + "\tSuccess" + colorReset)
 }
 
 func handleSetVar() {

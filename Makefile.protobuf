@@ -1,0 +1,19 @@
+.PHONY: protobuf
+protobufs: protobuf_dart protobuf_go
+
+protobuf_deps:
+	export PATH="$PATH":"$HOME/.pub-cache/bin"
+	sudo apt-get install -y protobuf-compiler
+	sudo apt-get install -y protoc-gen-go
+	dart pub global activate protoc_plugin
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+
+protobuf_dart:
+	rm -rf output/protobuf/dart && mkdir -p output/protobuf/dart
+	protoc --dart_out=output/protobuf/dart -Iprotocol protocol/*.proto
+
+protobuf_go:
+	rm -rf output/protobuf/go && mkdir -p output/protobuf/go
+	protoc -I=protocol --go_out=output/protobuf/go protocol/*.proto
+	rm -rf custom-libp2p/models/*.pb.go && mkdir -p custom-libp2p/models
+	cp -r output/protobuf/go/models/* custom-libp2p/models

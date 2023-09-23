@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package models;
+option go_package = "./models";
+
+import "file_metadata.proto";
+
+message MessageMetadata {    // Set this in code
+  string from = 1;
+  string to = 2;
+  uint64 timestamp = 3;
+}
+
+message MessageData {    // Transmit this to peers
+  oneof data {
+    string string_message = 1;
+    FileMetadata file_metadata_message = 2;
+  }
+}
+
+message Message {    // Send this to frontend (store on disk)
+  MessageMetadata metadata = 1;
+  MessageData data = 2;
+}

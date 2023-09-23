@@ -1,146 +1,165 @@
 package transfer
 
 import (
-	customLibP2P "github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p"
-	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/fileHandler"
-	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/utils"
+	"fmt"
+	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/config"
+	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/file_handler"
+	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/models"
+	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/notifier"
 	gostream "github.com/libp2p/go-libp2p-gostream"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"golang.org/x/exp/slices"
+	"google.golang.org/protobuf/proto"
 	"io"
-	"log"
 	"net"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strconv"
 	"sync"
+	"time"
 )
 
 type server struct {
 	listener         *net.Listener
 	server           *http.Server
-	servingMetafiles *sync.Map // key: file_SHA256, value: *FileMetadata
+	servingMetafiles *sync.Map // key: file_SHA256, value: *models.FileMetadata
 }
 
 // initServer initializes the server
-func initServer(node *customLibP2P.Node) {
+func initServer(node *models.Node) error {
 	// TODO: Load serving from DB
-	_instance := getInstance()
-	_server := _instance.server
+	_server := _server
 	_server.servingMetafiles = &sync.Map{}
 
 	node.SetStreamHandler(holePunchSyncStreamProtocolID, handleHolePunchSyncStream)
 	listener, err := gostream.Listen(node, protocolID)
-	utils.CheckError(err)
+	if err != nil {
+		return err
+	}
 	_server.listener = &listener
 
 	if _server.server == nil {
 		go func() {
-			http.HandleFunc("/file", handleFileRequest)
+			http.HandleFunc("/file", handleFileDownloadRequest)
 			http.HandleFunc("/message", handleMessageRequest)
 			_server.server = &http.Server{}
 			err = _server.server.Serve(listener)
-			log.Printf("Server Error: %v", err)
+			if err != nil {
+				notifier.QueueWarning(&models.Warning{
+					Error: err.Error(),
+					Info:  fmt.Sprintf("Server %v", listener.Addr()),
+				})
+			}
 		}()
 	} else {
 		go func() {
+			_server.server = &http.Server{}
 			err = _server.server.Serve(listener)
-			log.Printf("Server Error: %v", err)
+			if err != nil {
+				notifier.QueueWarning(&models.Warning{
+					Error: err.Error(),
+					Info:  fmt.Sprintf("Server %v", listener.Addr()),
+				})
+			}
 		}()
 	}
+	return nil
 }
 
 // closeServer closes the server
 func closeServer() error {
-	_instance := getInstance()
-	err := _instance.server.server.Close()
+	_serverLock.Lock()
+	defer _serverLock.Unlock()
+	if !ServerIsRunning() {
+		return ErrServerNotRunning
+	}
+	err := _server.server.Close()
 	if err != nil {
 		return err
 	}
-	listener := *(_instance.server.listener)
+	listener := *(_server.listener)
 	err = listener.Close()
 	if err != nil {
 		return err
 	}
-	_instance.server.servingMetafiles = nil
+	_server.servingMetafiles = nil
 	return nil
 }
 
 // ServeFile serves the file to peer, returns file SHA256Sum and error
 func ServeFile(filePath string, peerId peer.ID) (string, error) {
-	_instance := getInstance()
-	if !_instance.running {
-		return "", NotRunning
+	if !ServerIsRunning() {
+		return "", ErrServerNotRunning
 	}
-	file, err := os.Open(filePath)
+	file, err := file_handler.GetFile(filePath)
 	if err != nil {
 		return "", err
 	}
-	sha256sum, err := fileHandler.GetSHA256Sum(file)
+	sha256sum, err := file_handler.GetSHA256Sum(file)
 	if err != nil {
 		return "", err
 	}
-	_, exists := _instance.server.servingMetafiles.Load(sha256sum)
+	_, exists := _server.servingMetafiles.Load(sha256sum)
 	if !exists {
-		fStat, err := os.Stat(filePath)
+		fSize, err := file_handler.GetFileSize(filePath)
 		if err != nil {
 			return sha256sum, err
 		}
-		_instance.server.servingMetafiles.Store(
+		_server.servingMetafiles.Store(
 			sha256sum,
-			&FileMetadata{
-				_basePath:            filepath.Dir(filePath),
-				_fileDescriptor:      file,
-				fileName:             filepath.Base(filePath),
-				fileSHA256:           sha256sum,
-				fileSize:             uint64(fStat.Size()),
-				_authorizedAccessors: make(map[peer.ID]bool),
+			&models.FileMetadata{
+				FileName:   filepath.Base(filePath),
+				FileSha256: sha256sum,
+				FileSize:   fSize,
+				SpecificData: &models.FileMetadata_ServerFileInfo{ServerFileInfo: &models.ServerFileInfo{
+					BasePath:            filepath.Dir(filePath),
+					AuthorizedAccessors: []string{},
+				}},
 			},
 		)
 	}
-	value, _ := _instance.server.servingMetafiles.Load(sha256sum)
-	metadata := value.(*FileMetadata)
-	metadata.AllowPeerAccess(peerId)
-	err = sendFileNotification(peerId, metadata)
+	value, _ := _server.servingMetafiles.Load(sha256sum)
+	metadata := value.(*models.FileMetadata)
+	metadata.GetServerFileInfo().AuthorizedAccessors = append(metadata.GetServerFileInfo().AuthorizedAccessors,
+		peerId.String())
+	err = sendFileMessage(peerId, metadata)
 	return sha256sum, err
 }
 
 // StopServingFile stops serving the file
 func StopServingFile(fileSHA256 string) error {
-	_instance := getInstance()
-	if !_instance.running {
-		return NotRunning
+	if !ServerIsRunning() {
+		return ErrServerNotRunning
 	}
-	value, found := _instance.server.servingMetafiles.Load(fileSHA256)
+	value, found := _server.servingMetafiles.Load(fileSHA256)
 	if !found {
-		return FileNotServing
+		return ErrFileNotServing
 	}
-	metadata := value.(*FileMetadata)
-	err := metadata.CloseFile()
+	metadata := value.(*models.FileMetadata)
+	err := file_handler.CloseFile(getFilePath(metadata))
 	if err != nil {
 		return err
 	}
-	_instance.server.servingMetafiles.Delete(fileSHA256)
+	_server.servingMetafiles.Delete(fileSHA256)
 	return nil
 }
 
-// handleFileRequest handles file requests
-func handleFileRequest(writer http.ResponseWriter, request *http.Request) {
-	_instance := getInstance()
+// handleFileDownloadRequest handles file download requests
+func handleFileDownloadRequest(writer http.ResponseWriter, request *http.Request) {
 	_clientAddr, err := peer.Decode(request.RemoteAddr)
 	if err != nil {
 		writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	requestSHA256 := request.URL.Query().Get("sha256")
-	value, exists := _instance.server.servingMetafiles.Load(requestSHA256)
+	value, exists := _server.servingMetafiles.Load(requestSHA256)
 	if !exists {
 		writer.WriteHeader(http.StatusNotFound)
 		return
 	}
-	metadata := value.(*FileMetadata)
-	allowed, found := metadata._authorizedAccessors[_clientAddr]
-	if !(found && allowed) {
+	metadata := value.(*models.FileMetadata)
+	allowed := slices.Contains(metadata.GetServerFileInfo().AuthorizedAccessors, _clientAddr.String())
+	if !allowed {
 		writer.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -157,47 +176,70 @@ func handleFileRequest(writer http.ResponseWriter, request *http.Request) {
 }
 
 // handleGetFile handles get request for file
-func handleGetFile(writer http.ResponseWriter, request *http.Request, metadata *FileMetadata) {
-	offset, err := strconv.Atoi(request.URL.Query().Get("offset"))
-	if err != nil {
-		log.Printf("Error in parsing offset: %v", err)
-		writer.WriteHeader(http.StatusBadRequest)
-		return
+func handleGetFile(writer http.ResponseWriter, request *http.Request, metadata *models.FileMetadata) {
+	var err error
+	strOffset := request.URL.Query().Get("offset")
+	offset := 0
+	if strOffset != "" {
+		offset, err = strconv.Atoi(strOffset)
+		if err != nil {
+			notifier.QueueWarning(&models.Warning{
+				Error: err.Error(),
+				Info:  "Error in parsing offset",
+			})
+			writer.WriteHeader(http.StatusBadRequest)
+			return
+		}
 	}
 	if offset < 0 {
-		log.Printf("Invalid Offset")
+		notifier.QueueWarning(&models.Warning{
+			Info: fmt.Sprintf("Invalid Offset: %v", offset),
+		})
 		writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	if uint64(offset) >= metadata.fileSize {
-		log.Printf("Invalid Offset")
+	if uint64(offset) >= metadata.FileSize {
+		notifier.QueueWarning(&models.Warning{
+			Info: fmt.Sprintf("Invalid Offset: %v", offset),
+		})
 		writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	file, err := metadata.GetFile()
+	file, err := file_handler.GetFile(getFilePath(metadata))
 	if err != nil {
-		log.Printf("Error getting local file %s.%s: %v", metadata._basePath, metadata.fileName, err)
+		notifier.QueueWarning(&models.Warning{
+			Error: err.Error(),
+			Info:  fmt.Sprintf("Failed to serve file: %v to peer: %v", metadata.FileSha256, request.RemoteAddr),
+		})
 		writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	writer.WriteHeader(http.StatusOK)
-	fReader := io.NewSectionReader(file, int64(offset), int64(metadata.fileSize-uint64(offset)))
-	n, err := io.CopyN(writer, fReader, int64(metadata.fileSize-uint64(offset)))
+	fReader := io.NewSectionReader(file, int64(offset), int64(metadata.FileSize-uint64(offset)))
+	n, err := io.CopyN(writer, fReader, int64(metadata.FileSize-uint64(offset)))
 	if err != nil {
-		log.Printf("Error in writing File: %v", err)
+		notifier.QueueWarning(&models.Warning{
+			Error: err.Error(),
+			Info:  fmt.Sprintf("Failed to serve file: %v to peer: %v", metadata.FileSha256, request.RemoteAddr),
+		})
+		writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	log.Printf("Wrote File: %v bytes (%v)", n+int64(offset), metadata.fileSize)
+	notifier.QueueInfo(fmt.Sprintf("Wrote File: %v bytes (%v)", n+int64(offset), metadata.FileSize))
 }
 
 // handleDeleteFile handles delete request for file
-func handleDeleteFile(writer http.ResponseWriter, requestSHA256 string,
-	metadata *FileMetadata, clientAddr peer.ID) {
-	metadata.DenyPeerAccess(clientAddr)
-	if len(metadata._authorizedAccessors) == 0 {
+func handleDeleteFile(writer http.ResponseWriter, requestSHA256 string, metadata *models.FileMetadata,
+	clientAddr peer.ID) {
+	removePeer(metadata, clientAddr)
+	if len(metadata.GetServerFileInfo().GetAuthorizedAccessors()) == 0 {
 		err := StopServingFile(requestSHA256)
 		if err != nil {
-			log.Printf("Error stopping serving file %s: %v", requestSHA256, err)
+			notifier.QueueWarning(&models.Warning{
+				Error: err.Error(),
+				Info: fmt.Sprintf("Failed to stop serving file: %v to peer: %v", metadata.FileSha256,
+					clientAddr),
+			})
 			writer.WriteHeader(http.StatusInternalServerError)
 			return
 		} else {
@@ -220,63 +262,74 @@ func handleMessageRequest(writer http.ResponseWriter, request *http.Request) {
 		writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	maxMsgLen := int64(maxMessageSize + headerSize + 1)
+	maxMsgLen := int64(config.MaxMessageSize + 1)
 	bodyReader := io.LimitReader(request.Body, maxMsgLen)
 	msgBuff := make([]byte, maxMsgLen)
 	read, err := bodyReader.Read(msgBuff)
 	if err != io.EOF && err != nil {
-		log.Printf("Error reading message from peer %s: %v", peerId, err)
+		notifier.QueueWarning(&models.Warning{
+			Error: err.Error(),
+			Info:  fmt.Sprintf("Failed to read message from peer: %v", peerId),
+		})
 		writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	log.Printf("Read %d bytes from peer %s", read, peerId)
-	message := &Message{}
-	err = message.unmarshal(msgBuff[:read])
+	notifier.QueueInfo(fmt.Sprintf("Read %d bytes from peer %s", read, peerId))
+	messageData := &models.MessageData{}
+	err = proto.Unmarshal(msgBuff[:read], messageData)
 	if err != nil {
-		log.Printf("Error unmarshaling message from peer %s: %v", peerId, err)
+		notifier.QueueWarning(&models.Warning{
+			Error: err.Error(),
+			Info:  fmt.Sprintf("Failed to unmarshal message from peer: %v", peerId),
+		})
 		writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	if message.msgType == StringMessage {
-		handleStringMessage(writer, message, peerId)
-	} else if message.msgType == FileNotificationMessage {
-		handleFileNotificationMessage(writer, message, peerId)
+	message := &models.Message{
+		Metadata: &models.MessageMetadata{
+			From:      peerId.String(),
+			To:        _node.ID().String(),
+			Timestamp: uint64(time.Now().Unix()),
+		},
+		Data: messageData,
+	}
+	if message.GetData().GetStringMessage() != "" {
+		handleStringMessage(writer, message)
+	} else if message.GetData().GetFileMetadataMessage() != nil {
+		handleFileMessage(writer, message, peerId)
+	} else {
+		notifier.QueueInfo(fmt.Sprintf("Recieved blank message from peer %s", peerId))
+		writer.WriteHeader(http.StatusBadRequest)
+		return
 	}
 }
 
 // handleStringMessage handles string message
-func handleStringMessage(writer http.ResponseWriter, message *Message, peerId peer.ID) {
-	// TODO Write to DB
-	log.Printf(">> %s: %s\n", peerId, string(message.msgRawData))
+func handleStringMessage(writer http.ResponseWriter, message *models.Message) {
+	notifier.QueueMessage(message)
 	writer.WriteHeader(http.StatusOK)
 }
 
-// handleFileNotificationMessage handles file notification message
-func handleFileNotificationMessage(writer http.ResponseWriter, message *Message, peerId peer.ID) {
+// handleFileMessage handles file notification message
+func handleFileMessage(writer http.ResponseWriter, message *models.Message, peerId peer.ID) {
 	// TODO Write to DB
-	fileMetadata := &FileMetadata{}
-	err := fileMetadata.unmarshal(message.msgRawData)
+	fileMetadata := message.GetData().GetFileMetadataMessage()
+	fileMetadata.SpecificData = &models.FileMetadata_ClientFileInfo{
+		ClientFileInfo: &models.ClientFileInfo{
+			BasePath:   config.DefaultDownloadPath,
+			FileServer: peerId.String(),
+		},
+	}
+
+	err := _client.addDownloadingMetafile(fileMetadata)
 	if err != nil {
-		log.Printf("Error unmarshaling file metadata from peer %s: %v", peerId, err)
+		notifier.QueueWarning(&models.Warning{
+			Error: err.Error(),
+			Info:  fmt.Sprintf("Client %v failed to add file %v", peerId, fileMetadata.GetFileSha256()),
+		})
 		writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	fileMetadata = fileMetadata.Clone()
-	fileMetadata._fileServer = peerId
-	_instance := getInstance()
-	err = _instance.client.addDownloadingMetafile(fileMetadata)
-	if err != nil {
-		writer.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	if autoDownloadEnabled {
-		go func() {
-			err := ResumeDownload(fileMetadata.fileSHA256, peerId)
-			if err != nil {
-				log.Printf("Error auto downloading of %s: %v", fileMetadata.fileName, err)
-			}
-		}()
-	}
-	log.Printf(">> File Notification %s: %s\n", peerId, fileMetadata.fileName)
+	notifier.QueueMessage(message)
 	writer.WriteHeader(http.StatusOK)
 }

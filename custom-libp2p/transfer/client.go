@@ -4,19 +4,21 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	customLibP2P "github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p"
+	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/file_handler"
+	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/models"
+	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/notifier"
 	p2phttp "github.com/libp2p/go-libp2p-http"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"google.golang.org/protobuf/proto"
 	"io"
-	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"sync"
+	"time"
 )
 
 type client struct {
-	node                 *customLibP2P.Node
+	node                 *models.Node
 	client               *http.Client
 	transport            *http.Transport
 	downloadingMetafiles *sync.Map // key = SHA256+fileServer, value = *FileMetadata
@@ -24,100 +26,106 @@ type client struct {
 }
 
 // initClient Initializes client
-func initClient(node *customLibP2P.Node) {
+func initClient(node *models.Node) error {
 	// TODO: Load downloading Metafiles From DB
-	_instance := getInstance()
-	_instance.client.downloadingMetafiles = &sync.Map{}
-	_instance.client.isDownloading = &sync.Map{}
+	_client.downloadingMetafiles = &sync.Map{}
+	_client.isDownloading = &sync.Map{}
 
-	_instance.client.transport = &http.Transport{}
-	_instance.client.transport.RegisterProtocol("libp2p",
-		p2phttp.NewTransport(node, p2phttp.ProtocolOption(protocolID)))
-	_instance.client.client = &http.Client{Transport: _instance.client.transport}
+	_client.transport = &http.Transport{}
+	_client.transport.RegisterProtocol("libp2p", p2phttp.NewTransport(node, p2phttp.ProtocolOption(protocolID)))
+	_client.client = &http.Client{Transport: _client.transport}
+	return nil
 }
 
 // closeClient Closes client
 func closeClient() error {
-	_instance := getInstance()
-	_instance.client.isDownloading.Range(func(key, value any) bool {
-		_instance.client.isDownloading.Store(key, false)
+	_clientLock.Lock()
+	defer _clientLock.Unlock()
+	if !ClientIsRunning() {
+		return ErrClientNotRunning
+	}
+	_client.isDownloading.Range(func(key, value any) bool {
+		_client.isDownloading.Store(key, false)
 		return true
 	})
-	_instance.client.downloadingMetafiles = nil
+	_client.downloadingMetafiles = nil
 	return nil
 }
 
 // SendMessage Sends message
 func SendMessage(peerId peer.ID, message string) error {
-	_instance := getInstance()
-	if !_instance.running {
-		return NotRunning
+	if !ClientIsRunning() {
+		return ErrClientNotRunning
 	}
-	stringMessage, err := NewStringMessage(message)
+	messageData := &models.MessageData{
+		Data: &models.MessageData_StringMessage{StringMessage: message},
+	}
+	err := sendMessage(peerId, messageData)
 	if err != nil {
 		return err
 	}
-	err = sendMessage(peerId, stringMessage)
-	if err != nil {
-		return err
-	}
+	notifier.QueueMessage(&models.Message{
+		Metadata: &models.MessageMetadata{
+			From:      _node.ID().String(),
+			To:        peerId.String(),
+			Timestamp: uint64(time.Now().Unix()),
+		},
+		Data: messageData,
+	})
 	return nil
 }
 
 // PauseDownload Pauses download
 func PauseDownload(sha256Sum string, peerId peer.ID) error {
-	_instance := getInstance()
-	if !_instance.running {
-		return NotRunning
+	if !ClientIsRunning() {
+		return ErrClientNotRunning
 	}
 	key := sha256Sum + peerId.String()
-	_, found := _instance.client.downloadingMetafiles.Load(key)
+	_, found := _client.downloadingMetafiles.Load(key)
 	if !found {
-		return FileMetadataNotAvailable
+		return ErrFileMetadataNotAvailable
 	}
-	value, found := _instance.client.isDownloading.Load(key)
+	value, found := _client.isDownloading.Load(key)
 	downloading := value.(bool)
 	if !(found && downloading) {
-		return FileNotDownloading
+		return ErrFileNotDownloading
 	}
-	_instance.client.isDownloading.Store(key, false)
+	_client.isDownloading.Store(key, false)
 	return nil
 }
 
 // ResumeDownload Resumes download
 func ResumeDownload(sha256Sum string, peerId peer.ID) error {
-	_instance := getInstance()
-	if !_instance.running {
-		return NotRunning
+	if !ClientIsRunning() {
+		return ErrClientNotRunning
 	}
 	key := sha256Sum + peerId.String()
-	value, found := _instance.client.isDownloading.Load(key)
+	value, found := _client.isDownloading.Load(key)
 	if !found {
-		return FileMetadataNotAvailable
+		return ErrFileMetadataNotAvailable
 	}
 	isDownloading := value.(bool)
 	if isDownloading {
-		return AlreadyDownloadingFile
+		return ErrAlreadyDownloadingFile
 	}
-	_instance.client.isDownloading.Store(key, true)
+	_client.isDownloading.Store(key, true)
 	go downloadFile(key)
 	return nil
 }
 
 // StopDownload Stops download
 func StopDownload(sha256Sum string, peerId peer.ID) error {
-	_instance := getInstance()
-	if !_instance.running {
-		return NotRunning
+	if !ClientIsRunning() {
+		return ErrClientNotRunning
 	}
 	key := sha256Sum + peerId.String()
-	value, found := _instance.client.downloadingMetafiles.Load(key)
+	value, found := _client.downloadingMetafiles.Load(key)
 	if !found {
-		return FileMetadataNotAvailable
+		return ErrFileMetadataNotAvailable
 	}
-	fileMetadata := value.(*FileMetadata)
-	_instance.client.downloadingMetafiles.Delete(key)
-	_instance.client.isDownloading.Delete(key)
+	fileMetadata := value.(*models.FileMetadata)
+	_client.downloadingMetafiles.Delete(key)
+	_client.isDownloading.Delete(key)
 	err := notifyServerStopDownloading(fileMetadata)
 	if err != nil {
 		return err
@@ -126,62 +134,76 @@ func StopDownload(sha256Sum string, peerId peer.ID) error {
 }
 
 // GetDownloadStatus returns Download Status
-func GetDownloadStatus(sha256Sum string, peerId peer.ID) (DownloadStatus, error) {
-	_instance := getInstance()
-	if !_instance.running {
-		return DownloadStatus{}, NotRunning
+func GetDownloadStatus(sha256Sum string, peerId peer.ID) (*models.DownloadStatus, error) {
+	if !ClientIsRunning() {
+		return nil, ErrClientNotRunning
 	}
 	key := sha256Sum + peerId.String()
-	value, found := _instance.client.downloadingMetafiles.Load(key)
+	value, found := _client.downloadingMetafiles.Load(key)
 	if !found {
-		return DownloadStatus{}, FileMetadataNotAvailable
+		return nil, ErrFileMetadataNotAvailable
 	}
-	metafile := value.(*FileMetadata)
-	value, found = _instance.client.isDownloading.Load(key)
+	metafile := value.(*models.FileMetadata)
+	value, found = _client.isDownloading.Load(key)
 	if !found {
-		return DownloadStatus{}, FileNotDownloading
+		return nil, ErrFileNotDownloading
 	}
 	isDownloading := value.(bool)
-	return downloadStatusFromDownloadingAndMetadata(isDownloading, metafile)
+	fileSize, err := file_handler.GetFileSize(getFilePath(metafile))
+	if err != nil {
+		return nil, err
+	}
+	downloadStatus := &models.DownloadStatus{
+		Downloading:     isDownloading,
+		FileBasePath:    metafile.GetClientFileInfo().GetBasePath(),
+		FileName:        metafile.GetFileName(),
+		FileSha256:      metafile.GetFileSha256(),
+		FullFileSize:    metafile.GetFileSize(),
+		CurrentFileSize: fileSize,
+	}
+	return downloadStatus, nil
 }
 
-// sendFileNotification Sends file notification
-func sendFileNotification(peerId peer.ID, metadata *FileMetadata) error {
-	msg, err := NewFileNotificationMessage(metadata)
-	if err != nil {
-		return err
+// sendFileMessage Sends file message
+func sendFileMessage(peerId peer.ID, metadata *models.FileMetadata) error {
+	clonedMetadata := proto.Clone(metadata).(*models.FileMetadata)
+	clonedMetadata.SpecificData = nil // Mask Specific Data
+	msg := &models.MessageData{
+		Data: &models.MessageData_FileMetadataMessage{
+			FileMetadataMessage: clonedMetadata,
+		},
 	}
 	return sendMessage(peerId, msg)
 }
 
-func sendMessage(peerId peer.ID, message *Message) error {
-	msgBytes, err := message.marshal()
+// sendMessage Sends generic message
+func sendMessage(peerId peer.ID, message *models.MessageData) error {
+	msgBytes, err := proto.Marshal(message)
 	if err != nil {
 		return err
 	}
 	msgReader := bytes.NewReader(msgBytes)
-	_instance := getInstance()
-	err = _instance.node.Connect(context.TODO(), peer.AddrInfo{ID: peerId})
+	err = _node.Connect(context.TODO(), peer.AddrInfo{ID: peerId})
 	if err != nil {
 		return err
 	}
-	url := fmt.Sprintf("libp2p://%s/message", peerId.String())
-	post, err := _instance.client.client.Post(url, "application/octet-stream", msgReader)
+	url := getMessageUrl(peerId)
+	post, err := _client.client.Post(url, "application/octet-stream", msgReader)
 	if err != nil {
 		return err
 	}
 	if post.StatusCode != http.StatusOK {
-		return ErrorSendingMessage
+		return ErrSendingMessage
 	}
 	return nil
 }
 
 // addDownloadingMetafile Adds downloading metafile
-func (c *client) addDownloadingMetafile(metafile *FileMetadata) error {
-	key := metafile.fileSHA256 + metafile._fileServer.String()
+func (c *client) addDownloadingMetafile(metafile *models.FileMetadata) error {
+	key := metafile.FileSha256 + metafile.GetClientFileInfo().GetFileServer()
 	_, found := c.downloadingMetafiles.Load(key)
 	if found {
-		return MetafileAlreadyExists
+		return ErrMetafileAlreadyExists
 	}
 	c.downloadingMetafiles.Store(key, metafile)
 	c.isDownloading.Store(key, false)
@@ -190,96 +212,121 @@ func (c *client) addDownloadingMetafile(metafile *FileMetadata) error {
 
 // downloadFile Downloads file
 func downloadFile(key string) {
-	_instance := getInstance()
-	value, found := _instance.client.downloadingMetafiles.Load(key)
+	value, found := _client.downloadingMetafiles.Load(key)
 	if !found {
-		log.Printf("Error Downloading File: %v", FileMetadataNotAvailable)
+		notifier.QueueWarning(&models.Warning{Error: ErrFileMetadataNotAvailable.Error()})
 		return
 	}
-	metadata := value.(*FileMetadata)
-	file, err := metadata.GetFile()
+	// TODO: Better download logic, if file exists, change name
+	metadata := value.(*models.FileMetadata)
+	file, err := file_handler.GetFile(getFilePath(metadata))
 	if err != nil {
-		log.Printf("Error getting local file %s.%s: %v", metadata._basePath, metadata.fileName, err)
-		_instance.client.isDownloading.Store(key, false)
+		notifier.QueueWarning(&models.Warning{
+			Error: err.Error(),
+			Info:  "Cant load/create file",
+		})
 		return
 	}
 	for {
-		value, found = _instance.client.isDownloading.Load(key)
+		value, found = _client.isDownloading.Load(key)
 		if !found {
-			log.Printf("Error Downloading File: %v", FileMetadataNotAvailable)
+			notifier.QueueWarning(&models.Warning{Error: ErrFileMetadataNotAvailable.Error()})
 			return
 		}
 		downloading := value.(bool)
 		if !downloading {
 			return
 		}
-		err := _instance.node.Connect(context.TODO(), peer.AddrInfo{ID: metadata._fileServer})
+		peerId, err := peer.Decode(metadata.GetClientFileInfo().GetFileServer())
 		if err != nil {
-			log.Printf("Error connecting to file server %s.%s: %v", metadata._basePath, metadata.fileName, err)
-			_instance.client.isDownloading.Store(key, false)
+			notifier.QueueWarning(&models.Warning{
+				Error: err.Error(),
+				Info:  "Can not decode file server",
+			})
+		}
+		err = _node.Connect(context.TODO(), peer.AddrInfo{ID: peerId})
+		if err != nil {
+			notifier.QueueWarning(&models.Warning{
+				Error: err.Error(),
+				Info:  fmt.Sprintf("While downloading to File Path: %s", getFilePath(metadata)),
+			})
+			_client.isDownloading.Store(key, false)
 			continue
 		}
-		if !connectedWithoutRelay(_instance.node, metadata._fileServer) {
-			newHolePunchSyncStream(_instance.node, metadata._fileServer)
+		if !connectedWithoutRelay(_node, peerId) {
+			newHolePunchSyncStream(_node, peerId)
 		}
-		fStat, err := os.Stat(filepath.Join(metadata._basePath, metadata.fileName))
+		fStat, err := os.Stat(getFilePath(metadata))
 		if err != nil {
-			log.Printf("Error getting metadata %s.%s: %v", metadata._basePath, metadata.fileName, err)
-			_instance.client.isDownloading.Store(key, false)
+			notifier.QueueWarning(&models.Warning{
+				Error: err.Error(),
+				Info:  fmt.Sprintf("File path: %s", getFilePath(metadata)),
+			})
+			_client.isDownloading.Store(key, false)
 			continue
 		}
-		if uint64(fStat.Size()) == metadata.fileSize {
+		if uint64(fStat.Size()) == metadata.FileSize {
 			// TODO Handle after file download (verify sha256, ...)
-			log.Printf("File downloaded %v", metadata.fileName)
-			_instance.client.isDownloading.Store(key, false)
-			afterDownloaded(metadata)
+			notifier.QueueInfo(fmt.Sprintf("File downloaded %v (%v)", metadata.FileName, metadata.FileSha256))
+			_client.isDownloading.Store(key, false)
+			afterDownloaded(metadata, file)
 			continue
 		}
-		url := fmt.Sprintf("libp2p://%v/file?sha256=%v&offset=%v",
-			metadata._fileServer.String(), metadata.fileSHA256, fStat.Size())
-		res, err := _instance.client.client.Get(url)
+		url := getFileServeUrl(metadata)
+		res, err := _client.client.Get(url)
 		if err != nil {
-			log.Printf("Error in Downloading GET: %v", err)
-			_instance.client.isDownloading.Store(key, false)
+			notifier.QueueWarning(&models.Warning{
+				Error: err.Error(),
+				Info:  fmt.Sprintf("File path: %s", url),
+			})
+			_client.isDownloading.Store(key, false)
 			continue
 		}
 		if res.StatusCode == http.StatusOK {
-			n, _ := io.CopyN(file, res.Body, int64(metadata.fileSize-uint64(fStat.Size())))
-			log.Printf("Read File: %v bytes (%v)", fStat.Size()+n, metadata.fileSize)
-			if uint64(n+fStat.Size()) == metadata.fileSize {
-				_instance.client.isDownloading.Store(key, false)
-				afterDownloaded(metadata)
+			n, _ := io.CopyN(file, res.Body, int64(metadata.FileSize-uint64(fStat.Size())))
+			notifier.QueueInfo(fmt.Sprintf("Read File(%v): %v bytes (%v)", metadata.FileSize, fStat.Size()+n,
+				metadata.FileSize))
+			if uint64(n+fStat.Size()) == metadata.FileSize {
+				_client.isDownloading.Store(key, false)
+				afterDownloaded(metadata, file)
 			}
 		} else {
-			log.Printf("Error in Downloading File Server responded with: %v", res.Status)
-			_instance.client.isDownloading.Store(key, false)
+			notifier.QueueWarning(&models.Warning{
+				Info: fmt.Sprintf("Error in Downloading File Server responded with: %v", res.Status),
+			})
+			_client.isDownloading.Store(key, false)
 			continue
 		}
 	}
 }
 
 // afterDownloaded do after file is downloaded
-func afterDownloaded(metadata *FileMetadata) {
+func afterDownloaded(metadata *models.FileMetadata, file *os.File) {
 	// TODO Check SHA256
-	log.Printf("File downloaded %v", metadata.fileName)
-	err := metadata.CloseFile()
+	notifier.QueueInfo(fmt.Sprintf("File downloaded %v", metadata.FileName))
+	err := file.Close()
 	if err != nil {
-		log.Printf("Error closing file %s.%s: %v", metadata._basePath, metadata.fileName, err)
+		notifier.QueueWarning(&models.Warning{
+			Error: err.Error(),
+			Info:  fmt.Sprintf("File path: %s", getFilePath(metadata)),
+		})
 	}
 	err = notifyServerStopDownloading(metadata)
 	if err != nil {
-		log.Printf("Error notifying server to stop downloading %s.%s: %v", metadata._basePath, metadata.fileName, err)
+		notifier.QueueWarning(&models.Warning{
+			Error: err.Error(),
+			Info:  fmt.Sprintf("File path: %s", getFilePath(metadata)),
+		})
 	}
 }
 
-func notifyServerStopDownloading(metadata *FileMetadata) error {
-	_instance := getInstance()
-	deleteUrl := fmt.Sprintf("libp2p://%v/file?sha256=%v", metadata._fileServer, metadata.fileSHA256)
+func notifyServerStopDownloading(metadata *models.FileMetadata) error {
+	deleteUrl := getFileServeUrl(metadata)
 	deleteFileRequest, err := http.NewRequest(http.MethodDelete, deleteUrl, nil)
 	if err != nil {
 		return err
 	}
-	do, err := _instance.client.client.Do(deleteFileRequest)
+	do, err := _client.client.Do(deleteFileRequest)
 	if err != nil {
 		return err
 	}
