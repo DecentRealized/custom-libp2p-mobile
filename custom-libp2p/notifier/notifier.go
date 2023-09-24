@@ -8,6 +8,7 @@ import (
 var notificationChannel = make(chan *models.Notification, config.MaxNotifierQueueSize)
 
 func Reset() error {
+	QueueInfo("Notification Stream Reset")
 	close(notificationChannel)
 	notificationChannel = make(chan *models.Notification, config.MaxNotifierQueueSize)
 	return nil
