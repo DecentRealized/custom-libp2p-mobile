@@ -1,7 +1,6 @@
 package p2p
 
 import (
-	"context"
 	"fmt"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/file_handler"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/models"
@@ -42,11 +41,6 @@ func CreateNode(privateKey crypto.PrivKey, useInternet bool) error {
 	node = &models.Node{RoutedHost: *routedhost.Wrap(_node, dht)}
 	if err != nil { // Critical
 		return err
-	}
-	if useInternet { // Async connect to bootstrap nodes
-		go func() {
-			connectToBootstrapNodes(node, context.TODO()) // Non-Critical
-		}()
 	}
 	// Initialize Other Modules
 	err = transfer.Init(node)

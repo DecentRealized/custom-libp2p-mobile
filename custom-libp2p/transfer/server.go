@@ -319,7 +319,6 @@ func handleFileMessage(writer http.ResponseWriter, message *models.Message, peer
 			FileServer: peerId.String(),
 		},
 	}
-
 	err := _client.addDownloadingMetafile(fileMetadata)
 	if err != nil {
 		notifier.QueueWarning(&models.Warning{

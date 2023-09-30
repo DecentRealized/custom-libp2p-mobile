@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/config"
-	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/models"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/notifier"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/utils"
 	"github.com/libp2p/go-libp2p"
@@ -18,25 +17,8 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/protocol/holepunch"
 	"github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
-	"sync"
+	"time"
 )
-
-func connectToBootstrapNodes(node host.Host, ctx context.Context) {
-	var wg sync.WaitGroup
-	for _, peerInfo := range utils.GetDefaultBootstrapPeerAddrInfos() {
-		wg.Add(1)
-		peerInfo := peerInfo
-		go func() {
-			defer wg.Done()
-			if err := node.Connect(ctx, peerInfo); err != nil {
-				notifier.QueueWarning(&models.Warning{Error: err.Error(), Info: "Failed to connect to bootstrap node"})
-			} else {
-				notifier.QueueInfo(fmt.Sprintf("Connection established with bootstrap node: %v", peerInfo))
-			}
-		}()
-	}
-	wg.Wait()
-}
 
 func getOptions(privateKey crypto.PrivKey, useInternet bool) []libp2p.Option {
 	options := []libp2p.Option{libp2p.Identity(privateKey), libp2p.ForceReachabilityPrivate()}
@@ -44,6 +26,8 @@ func getOptions(privateKey crypto.PrivKey, useInternet bool) []libp2p.Option {
 		options = append(options,
 			libp2p.EnableHolePunching(holepunch.WithTracer(&HolePunchEventTracer{})),
 			libp2p.EnableAutoRelayWithStaticRelays(utils.GetDefaultBootstrapPeerAddrInfos(),
+				autorelay.WithBackoff(5*time.Second),
+				autorelay.WithMinInterval(5*time.Second),
 				autorelay.WithBootDelay(0)))
 	} else {
 		options = append(options, libp2p.AddrsFactory(noInternetAddressFactory))
