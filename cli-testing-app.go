@@ -27,12 +27,12 @@ const helpString string = "" +
 	"3.  createRandomNode:   creates random node\n" +
 	"4.  getNodeId:          get node id of running node\n" +
 	"5.  getListenAddresses: get listen addresses of running node\n" +
-	"6.  allowNode:			 Allow messages from this node\n" +
-	"7.  isAllowedNode:		 Check if this node is allowed to send messages\n" +
-	"8.  getAllowedNodes:	 Get all node Ids which can send messages\n" +
-	"9.  blockNode:			 Block messages from this node\n" +
-	"10. isBlockedNode: 	 Check if this node is blocked\n" +
-	"11. getBlockedNodes: 	 Gets all node Ids which are blocked\n" +
+	"6.  allowNode:          Allow messages from this node\n" +
+	"7.  isAllowedNode:      Check if this node is allowed to send messages\n" +
+	"8.  getAllowedNodes:    Get all node Ids which can send messages\n" +
+	"9.  blockNode:          Block messages from this node\n" +
+	"10. isBlockedNode:      Check if this node is blocked\n" +
+	"11. getBlockedNodes:    Gets all node Ids which are blocked\n" +
 	"12. serveFile:          serve file to peer from running node\n" +
 	"13. stopServeFile:      stop serving file with SHA256\n" +
 	"14. sendMessage:        send message to peer from running node\n" +
@@ -288,12 +288,12 @@ func handleServeFile() {
 		fmt.Println(colorRed + fmt.Sprintf("\tError: %v", err) + colorReset)
 		return
 	}
-	fileSHA256, err := transfer.ServeFile(filePath, peerId)
+	metadata, err := transfer.ServeFile(filePath, peerId)
 	if err != nil {
 		fmt.Println(colorRed + fmt.Sprintf("\tError: %v", err) + colorReset)
 		return
 	}
-	fmt.Println("\t" + fileSHA256)
+	fmt.Printf("\t%v\n", metadata)
 	fmt.Println(colorGreen + "\tSuccess" + colorReset)
 }
 

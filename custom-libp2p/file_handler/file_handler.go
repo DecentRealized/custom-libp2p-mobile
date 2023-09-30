@@ -19,8 +19,13 @@ func Reset() error {
 
 // GetSHA256Sum gets sha25 sum
 func GetSHA256Sum(file *os.File) (string, error) {
+	// Seek to start
+	_, err := file.Seek(0, 0)
+	if err != nil {
+		return "", err
+	}
 	h := sha256.New()
-	_, err := io.Copy(h, file)
+	_, err = io.Copy(h, file)
 	if err != nil {
 		return "", err
 	}
@@ -55,7 +60,6 @@ func GetFile(path string) (*os.File, error) {
 	}
 	openFileCache.Store(path, f)
 	// Seek file to start
-	_, err = f.Seek(0, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -67,6 +71,7 @@ func CloseFile(path string) error {
 	value, ok := openFileCache.Load(path)
 	if ok && value != nil {
 		f := value.(*os.File)
+		openFileCache.Delete(path)
 		return f.Close()
 	}
 	openFileCache.Delete(path)

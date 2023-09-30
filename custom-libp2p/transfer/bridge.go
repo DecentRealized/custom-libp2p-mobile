@@ -7,7 +7,7 @@ import (
 )
 
 type ServeFileBridgeInput = models.ServeFileRequest
-type ServeFileBridgeOutput = models.StringMessage
+type ServeFileBridgeOutput = models.FileMetadata
 
 func ServeFileBridge(input proto.Message) (proto.Message, error) {
 	serveFileRequest := input.(*ServeFileBridgeInput)
@@ -15,11 +15,11 @@ func ServeFileBridge(input proto.Message) (proto.Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	fileSha256, err := ServeFile(serveFileRequest.GetFilePath(), peerId)
+	metadata, err := ServeFile(serveFileRequest.GetFilePath(), peerId)
 	if err != nil {
 		return nil, err
 	}
-	return &ServeFileBridgeOutput{Message: fileSha256}, nil
+	return metadata, nil
 }
 
 type StopServingFileBridgeInput = models.StringMessage

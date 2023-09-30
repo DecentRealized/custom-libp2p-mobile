@@ -14,6 +14,8 @@ import (
 	"github.com/multiformats/go-multiaddr"
 )
 
+// TODO: Take persistent data while creating node [Allowed list, Serving files, downloading files, download path]
+
 // CreateNode Destroys existing node if present and creates new
 func CreateNode(privateKey crypto.PrivKey, useInternet bool) error {
 	// Create Node

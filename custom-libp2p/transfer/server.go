@@ -88,23 +88,30 @@ func closeServer() error {
 }
 
 // ServeFile serves the file to peer, returns file SHA256Sum and error
-func ServeFile(filePath string, peerId peer.ID) (string, error) {
+func ServeFile(filePath string, peerId peer.ID) (*models.FileMetadata, error) {
 	if !ServerIsRunning() {
-		return "", ErrServerNotRunning
+		return nil, ErrServerNotRunning
+	}
+	if !access_manager.IsAllowedNode(peerId) {
+		return nil, ErrNotAllowedNode
 	}
 	file, err := file_handler.GetFile(filePath)
 	if err != nil {
-		return "", err
+		return nil, err
+	}
+	_, err = file.Seek(0, 0)
+	if err != nil {
+		return nil, err
 	}
 	sha256sum, err := file_handler.GetSHA256Sum(file)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	_, exists := _server.servingMetafiles.Load(sha256sum)
 	if !exists {
 		fSize, err := file_handler.GetFileSize(filePath)
 		if err != nil {
-			return sha256sum, err
+			return nil, err
 		}
 		_server.servingMetafiles.Store(
 			sha256sum,
@@ -124,7 +131,7 @@ func ServeFile(filePath string, peerId peer.ID) (string, error) {
 	metadata.GetServerFileInfo().AuthorizedAccessors = append(metadata.GetServerFileInfo().AuthorizedAccessors,
 		peerId.String())
 	err = sendFileMessage(peerId, metadata)
-	return sha256sum, err
+	return metadata, err
 }
 
 // StopServingFile stops serving the file
@@ -150,6 +157,11 @@ func handleFileDownloadRequest(writer http.ResponseWriter, request *http.Request
 	_clientAddr, err := peer.Decode(request.RemoteAddr)
 	if err != nil {
 		writer.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if !access_manager.IsAllowedNode(_clientAddr) {
+		writer.WriteHeader(http.StatusForbidden)
+		notifier.QueueInfo(fmt.Sprintf("Blocked node: %v tried to download file", _clientAddr.String()))
 		return
 	}
 	requestSHA256 := request.URL.Query().Get("sha256")
@@ -328,7 +340,17 @@ func handleFileMessage(writer http.ResponseWriter, message *models.Message, peer
 			FileServer: peerId.String(),
 		},
 	}
-	err := _client.addDownloadingMetafile(fileMetadata)
+	fileMetadata.FileName = filepath.Base(getNextAvailableFilePath(fileMetadata)) // Find Next best name
+	_, err := file_handler.GetFile(fileMetadata.GetFileName())                    // Reserve name now, use for renaming when downloaded
+	if err != nil {
+		notifier.QueueWarning(&models.Warning{
+			Error: err.Error(),
+			Info:  "Cant load/create file",
+		})
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	err = _client.addDownloadingMetafile(fileMetadata)
 	if err != nil {
 		notifier.QueueWarning(&models.Warning{
 			Error: err.Error(),

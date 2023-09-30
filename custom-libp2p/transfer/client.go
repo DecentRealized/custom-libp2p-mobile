@@ -229,9 +229,8 @@ func downloadFile(key string) {
 		notifier.QueueWarning(&models.Warning{Error: ErrFileMetadataNotAvailable.Error()})
 		return
 	}
-	// TODO: Better download logic, if file exists, change name
 	metadata := value.(*models.FileMetadata)
-	file, err := file_handler.GetFile(getFilePath(metadata))
+	file, err := file_handler.GetFile(getPartDownloading(metadata)) // For Downloading
 	if err != nil {
 		notifier.QueueWarning(&models.Warning{
 			Error: err.Error(),
@@ -249,12 +248,28 @@ func downloadFile(key string) {
 		if !downloading {
 			return
 		}
+		fStat, err := os.Stat(getPartDownloading(metadata))
+		if err != nil {
+			notifier.QueueWarning(&models.Warning{
+				Error: err.Error(),
+				Info:  fmt.Sprintf("File path: %s", getFilePath(metadata)),
+			})
+			_client.isDownloading.Store(key, false)
+			continue
+		}
+		if uint64(fStat.Size()) == metadata.FileSize {
+			_client.isDownloading.Store(key, false)
+			afterDownloaded(metadata, file)
+			break
+		}
 		peerId, err := peer.Decode(metadata.GetClientFileInfo().GetFileServer())
 		if err != nil {
 			notifier.QueueWarning(&models.Warning{
 				Error: err.Error(),
 				Info:  "Can not decode file server",
 			})
+			_client.isDownloading.Store(key, false)
+			continue
 		}
 		err = _node.Connect(context.TODO(), peer.AddrInfo{ID: peerId})
 		if err != nil {
@@ -268,22 +283,6 @@ func downloadFile(key string) {
 		if !connectedWithoutRelay(_node, peerId) {
 			newHolePunchSyncStream(_node, peerId)
 		}
-		fStat, err := os.Stat(getFilePath(metadata))
-		if err != nil {
-			notifier.QueueWarning(&models.Warning{
-				Error: err.Error(),
-				Info:  fmt.Sprintf("File path: %s", getFilePath(metadata)),
-			})
-			_client.isDownloading.Store(key, false)
-			continue
-		}
-		if uint64(fStat.Size()) == metadata.FileSize {
-			// TODO Handle after file download (verify sha256, ...)
-			notifier.QueueInfo(fmt.Sprintf("File downloaded %v (%v)", metadata.FileName, metadata.FileSha256))
-			_client.isDownloading.Store(key, false)
-			afterDownloaded(metadata, file)
-			continue
-		}
 		url := getFileServeUrl(metadata)
 		res, err := _client.client.Get(url)
 		if err != nil {
@@ -294,29 +293,58 @@ func downloadFile(key string) {
 			_client.isDownloading.Store(key, false)
 			continue
 		}
-		if res.StatusCode == http.StatusOK {
-			n, _ := io.CopyN(file, res.Body, int64(metadata.FileSize-uint64(fStat.Size())))
-			notifier.QueueInfo(fmt.Sprintf("Read File(%v): %v bytes (%v)", metadata.FileSize, fStat.Size()+n,
-				metadata.FileSize))
-			if uint64(n+fStat.Size()) == metadata.FileSize {
-				_client.isDownloading.Store(key, false)
-				afterDownloaded(metadata, file)
-			}
-		} else {
+		switch res.StatusCode {
+		case http.StatusOK:
+			n, err := io.CopyN(file, res.Body, int64(metadata.FileSize-uint64(fStat.Size())))
+			notifier.QueueInfo(fmt.Sprintf("Read File(%v): %v bytes (%v) [stopped with %v]",
+				metadata.FileName, fStat.Size()+n,
+				metadata.FileSize, err))
+			break
+		case http.StatusForbidden:
 			notifier.QueueWarning(&models.Warning{
-				Info: fmt.Sprintf("Error in Downloading File Server responded with: %v", res.Status),
+				Error: ErrForbidden.Error(),
+				Info: fmt.Sprintf("Failed To Download %v, from %v",
+					metadata.GetFileName(), metadata.GetClientFileInfo().GetFileServer()),
 			})
 			_client.isDownloading.Store(key, false)
-			continue
+			break
+		default:
+			notifier.QueueWarning(&models.Warning{
+				Info: fmt.Sprintf("Error in Downloading File %v Server %v responded with: %v",
+					metadata.GetFileName(), metadata.GetClientFileInfo().GetFileServer(), res.Status),
+			})
+			_client.isDownloading.Store(key, false)
+			break
 		}
 	}
 }
 
 // afterDownloaded do after file is downloaded
 func afterDownloaded(metadata *models.FileMetadata, file *os.File) {
-	// TODO Check SHA256
-	notifier.QueueInfo(fmt.Sprintf("File downloaded %v", metadata.FileName))
-	err := file.Close()
+	err := verifySHA256(metadata, file)
+	if err != nil {
+		notifier.QueueWarning(&models.Warning{
+			Error: err.Error(),
+			Info:  fmt.Sprintf("File path: %s", getPartDownloading(metadata)),
+		})
+		return
+	}
+	err = os.Rename(getPartDownloading(metadata), getFilePath(metadata))
+	if err != nil {
+		notifier.QueueWarning(&models.Warning{
+			Error: err.Error(),
+			Info:  fmt.Sprintf("File path: %s", getPartDownloading(metadata)),
+		})
+		return
+	}
+	err = file_handler.CloseFile(getPartDownloading(metadata))
+	if err != nil {
+		notifier.QueueWarning(&models.Warning{
+			Error: err.Error(),
+			Info:  fmt.Sprintf("File path: %s", getFilePath(metadata)),
+		})
+	}
+	err = file_handler.CloseFile(getFilePath(metadata))
 	if err != nil {
 		notifier.QueueWarning(&models.Warning{
 			Error: err.Error(),
@@ -330,6 +358,10 @@ func afterDownloaded(metadata *models.FileMetadata, file *os.File) {
 			Info:  fmt.Sprintf("File path: %s", getFilePath(metadata)),
 		})
 	}
+	key := metadata.GetFileSha256() + metadata.GetClientFileInfo().GetFileServer()
+	_client.isDownloading.Delete(key)
+	_client.downloadingMetafiles.Delete(key)
+	notifier.QueueInfo(fmt.Sprintf("File downloaded %v (%v)", metadata.FileName, metadata.FileSha256))
 }
 
 func notifyServerStopDownloading(metadata *models.FileMetadata) error {

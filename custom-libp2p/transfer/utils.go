@@ -11,6 +11,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"golang.org/x/exp/slices"
+	"os"
 	"path/filepath"
 )
 
@@ -85,12 +86,32 @@ func handleHolePunchSyncStream(stream core.Stream) {
 	}
 }
 
+// getPartDownloading filePath
+func getPartDownloading(metadata *models.FileMetadata) string {
+	if metadata.GetClientFileInfo() != nil {
+		return filepath.Join(metadata.GetClientFileInfo().GetBasePath(), fmt.Sprintf(".%v_%v",
+			metadata.GetClientFileInfo().GetFileServer(),
+			metadata.GetFileSha256()))
+	}
+	return ""
+}
+
 // getFilePath returns filePath
 func getFilePath(metadata *models.FileMetadata) string {
 	if metadata.GetClientFileInfo() != nil {
 		return filepath.Join(metadata.GetClientFileInfo().GetBasePath(), metadata.GetFileName())
 	} else if metadata.GetServerFileInfo() != nil {
 		return filepath.Join(metadata.GetServerFileInfo().GetBasePath(), metadata.GetFileName())
+	}
+	return ""
+}
+
+// getNthFilePath returns filePath
+func getNthFilePath(metadata *models.FileMetadata, n uint) string {
+	fileName := metadata.FileName[:len(metadata.FileName)-len(filepath.Ext(metadata.FileName))]
+	fileName = fmt.Sprintf("%v(%v)%v", fileName, n, filepath.Ext(metadata.FileName))
+	if metadata.GetClientFileInfo() != nil {
+		return filepath.Join(metadata.GetClientFileInfo().GetBasePath(), fileName)
 	}
 	return ""
 }
@@ -122,4 +143,28 @@ func removePeer(metadata *models.FileMetadata, _peer peer.ID) {
 			append(metadata.GetServerFileInfo().AuthorizedAccessors[:peerIndex],
 				metadata.GetServerFileInfo().AuthorizedAccessors[peerIndex+1:]...)
 	}
+}
+
+func verifySHA256(metadata *models.FileMetadata, file *os.File) error {
+	sha256Sum, err := file_handler.GetSHA256Sum(file)
+	if err != nil {
+		return err
+	}
+	if sha256Sum != metadata.GetFileSha256() {
+		return ErrSha256DoesNotMatch
+	}
+	return nil
+}
+
+func getNextAvailableFilePath(metadata *models.FileMetadata) string {
+	newFilePath := getFilePath(metadata)
+	if _, err := os.Stat(newFilePath); err == nil {
+		var offset uint = 0
+		for err == nil {
+			offset++
+			_, err = os.Stat(getNthFilePath(metadata, offset))
+		}
+		newFilePath = getNthFilePath(metadata, offset)
+	}
+	return newFilePath
 }

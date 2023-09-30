@@ -18,4 +18,5 @@ var (
 	ErrServerNotRunning         = errors.New("server not running")
 	ErrNotAllowedNode           = errors.New("peer node is not allowed")
 	ErrForbidden                = errors.New("peer forbids this action")
+	ErrSha256DoesNotMatch       = errors.New("sha 256 of sent file and received file does not match")
 )
