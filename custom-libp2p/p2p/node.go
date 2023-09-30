@@ -43,8 +43,10 @@ func CreateNode(privateKey crypto.PrivKey, useInternet bool) error {
 	if err != nil { // Critical
 		return err
 	}
-	if useInternet {
-		connectToBootstrapNodes(node, context.TODO()) // Non-Critical
+	if useInternet { // Async connect to bootstrap nodes
+		go func() {
+			connectToBootstrapNodes(node, context.TODO()) // Non-Critical
+		}()
 	}
 	// Initialize Other Modules
 	err = transfer.Init(node)
