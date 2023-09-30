@@ -312,7 +312,6 @@ func handleStringMessage(writer http.ResponseWriter, message *models.Message) {
 
 // handleFileMessage handles file notification message
 func handleFileMessage(writer http.ResponseWriter, message *models.Message, peerId peer.ID) {
-	// TODO Write to DB
 	fileMetadata := message.GetData().GetFileMetadataMessage()
 	fileMetadata.SpecificData = &models.FileMetadata_ClientFileInfo{
 		ClientFileInfo: &models.ClientFileInfo{

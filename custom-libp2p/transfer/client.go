@@ -64,14 +64,6 @@ func SendMessage(peerId peer.ID, message string) error {
 	if err != nil {
 		return err
 	}
-	notifier.QueueMessage(&models.Message{
-		Metadata: &models.MessageMetadata{
-			From:      _node.ID().String(),
-			To:        peerId.String(),
-			Timestamp: uint64(time.Now().Unix()),
-		},
-		Data: messageData,
-	})
 	return nil
 }
 
@@ -195,6 +187,14 @@ func sendMessage(peerId peer.ID, message *models.MessageData) error {
 	if post.StatusCode != http.StatusOK {
 		return ErrSendingMessage
 	}
+	notifier.QueueMessage(&models.Message{
+		Metadata: &models.MessageMetadata{
+			From:      _node.ID().String(),
+			To:        peerId.String(),
+			Timestamp: uint64(time.Now().Unix()),
+		},
+		Data: message,
+	})
 	return nil
 }
 
