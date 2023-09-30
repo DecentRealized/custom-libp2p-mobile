@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"fmt"
+	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/access_manager"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/file_handler"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/models"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/notifier"
@@ -74,6 +75,13 @@ func StopNode() error {
 		return err
 	}
 	err = file_handler.Reset()
+	if err != nil {
+		return err
+	}
+	err = access_manager.Reset()
+	if err != nil {
+		return err
+	}
 
 	node = nil
 	return nil

@@ -1,6 +1,7 @@
 package custom_libp2p_bridge
 
 import (
+	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/access_manager"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/crypto"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/example"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/notifier"
@@ -40,10 +41,32 @@ var bridgeMapping = map[string]BridgeInfo{ // Maps flutter name to golang Bridge
 		function: p2p.GetListenAddressesBridge,
 		output:   &p2p.GetListenAddressBridgeOutput{},
 	},
-	//"allowNode":         {},
-	//"isAllowedNode":     {},
-	//"getAllowedNodes":   {},
-	//"denyNode":          {},
+	"allowNode": {
+		input:    &access_manager.AllowNodeBridgeInput{},
+		function: access_manager.AllowNodeBridge,
+	},
+	"isAllowedNode": {
+		input:    &access_manager.IsAllowedNodeBridgeInput{},
+		function: access_manager.IsAllowedNodeBridge,
+		output:   &access_manager.IsAllowedNodeBridgeOutput{},
+	},
+	"getAllowedNodes": {
+		function: access_manager.GetAllowedNodesBridge,
+		output:   &access_manager.GetAllowedNodesBridgeOutput{},
+	},
+	"blockNode": {
+		input:    &access_manager.BlockNodeBridgeInput{},
+		function: access_manager.BlockNodeBridge,
+	},
+	"isBlockedNode": {
+		input:    &access_manager.IsBlockedNodeBridgeInput{},
+		function: access_manager.IsBlockedNodeBridge,
+		output:   &access_manager.IsBlockedNodeBridgeOutput{},
+	},
+	"getBlockedNodes": {
+		function: access_manager.GetBlockedNodesBridge,
+		output:   &access_manager.GetBlockedNodesBridgeOutput{},
+	},
 	"serveFile": {
 		input:    &transfer.ServeFileBridgeInput{},
 		function: transfer.ServeFileBridge,

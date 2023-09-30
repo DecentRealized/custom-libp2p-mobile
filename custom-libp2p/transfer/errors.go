@@ -16,4 +16,6 @@ var (
 	ErrSendingMessage           = errors.New("error sending message")
 	ErrClientNotRunning         = errors.New("client not running")
 	ErrServerNotRunning         = errors.New("server not running")
+	ErrNotAllowedNode           = errors.New("peer node is not allowed")
+	ErrForbidden                = errors.New("peer forbids this action")
 )

@@ -31,8 +31,8 @@ func TestCall(t *testing.T) {
 	t.Log("8. getAllowedNodes")
 	TestGetAllowedNodesCall(t)
 	// *****************************************************************************************************************
-	t.Log("9. denyNode")
-	TestDenyNodeCall(t)
+	t.Log("9. blockNode")
+	TestBlockNodeCall(t)
 	// *****************************************************************************************************************
 	t.Log("10. sendFile")
 	TestSendFileCall(t)
@@ -88,7 +88,7 @@ func TestGetAllowedNodesCall(t *testing.T) {
 	// assert.Equal(t, 1, 2)
 }
 
-func TestDenyNodeCall(t *testing.T) {
+func TestBlockNodeCall(t *testing.T) {
 	t.Log("TODO")
 	// assert.Equal(t, 1, 2)
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/access_manager"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/example"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/notifier"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/p2p"
@@ -26,18 +27,24 @@ const helpString string = "" +
 	"3.  createRandomNode:   creates random node\n" +
 	"4.  getNodeId:          get node id of running node\n" +
 	"5.  getListenAddresses: get listen addresses of running node\n" +
-	"6.  serveFile:          serve file to peer from running node\n" +
-	"7.  stopServeFile:      stop serving file with SHA256\n" +
-	"8.  sendMessage:        send message to peer from running node\n" +
-	"9.  pauseDownload:      pause downloading file with SHA256 from peer\n" +
-	"10. resumeDownload:     resume downloading file with SHA256 from peer\n" +
-	"11. stopDownload:       stop downloading file with SHA256 from peer\n" +
-	"12. getDownloadStatus:  get status of downloading file with SHA256 from peer\n" +
-	"13. flushNotifications: flush notifications asynchronously\n" +
-	"14. stopNode:           stop running node\n" +
-	"15. setVar (s):         set variables for debug purposes (use using {varName})\n" +
-	"16. help   (h):         show help\n" +
-	"17. quit   (q):         stop program\n"
+	"6.  allowNode:			 Allow messages from this node\n" +
+	"7.  isAllowedNode:		 Check if this node is allowed to send messages\n" +
+	"8.  getAllowedNodes:	 Get all node Ids which can send messages\n" +
+	"9.  blockNode:			 Block messages from this node\n" +
+	"10. isBlockedNode: 	 Check if this node is blocked\n" +
+	"11. getBlockedNodes: 	 Gets all node Ids which are blocked\n" +
+	"12. serveFile:          serve file to peer from running node\n" +
+	"13. stopServeFile:      stop serving file with SHA256\n" +
+	"14. sendMessage:        send message to peer from running node\n" +
+	"15. pauseDownload:      pause downloading file with SHA256 from peer\n" +
+	"16. resumeDownload:     resume downloading file with SHA256 from peer\n" +
+	"17. stopDownload:       stop downloading file with SHA256 from peer\n" +
+	"18. getDownloadStatus:  get status of downloading file with SHA256 from peer\n" +
+	"19. flushNotifications: flush notifications asynchronously\n" +
+	"20. stopNode:           stop running node\n" +
+	"21. setVar (s):         set variables for debug purposes (use using {varName})\n" +
+	"22. help   (h):         show help\n" +
+	"23. quit   (q):         stop program\n"
 
 var mapVar = make(map[string]string)
 
@@ -65,41 +72,59 @@ func main() {
 		case "5", "getListenAddresses":
 			handleGetListenAddresses()
 			break
-		case "6", "serveFile":
+		case "6", "allowNode":
+			handleAllowNode()
+			break
+		case "7", "isAllowedNode":
+			handleIsAllowedNode()
+			break
+		case "8", "getAllowedNodes":
+			handleGetAllowedNodes()
+			break
+		case "9", "blockNode":
+			handleBlockNode()
+			break
+		case "10", "isBlockedNode":
+			handleIsBlockedNode()
+			break
+		case "11", "getBlockedNodes":
+			handleGetBlockedNodes()
+			break
+		case "12", "serveFile":
 			handleServeFile()
 			break
-		case "7", "stopServeFile":
+		case "13", "stopServeFile":
 			handleStopServeFile()
 			break
-		case "8", "sendMessage":
+		case "14", "sendMessage":
 			handleSendMessage()
 			break
-		case "9", "pauseDownload":
+		case "15", "pauseDownload":
 			handlePauseDownload()
 			break
-		case "10", "resumeDownload":
+		case "16", "resumeDownload":
 			handleResumeDownload()
 			break
-		case "11", "stopDownload":
+		case "17", "stopDownload":
 			handleStopDownload()
 			break
-		case "12", "getDownloadStatus":
+		case "18", "getDownloadStatus":
 			handleGetDownloadStatus()
 			break
-		case "13", "flushNotifications", "flush", "print", "f":
+		case "19", "flushNotifications", "flush", "print", "f":
 			handleFlushNotifications()
 			break
-		case "14", "stopNode":
+		case "20", "stopNode":
 			handleStopNode()
 			break
-		case "15", "setVar", "s":
+		case "21", "setVar", "s":
 			handleSetVar()
 			break
-		case "16", "help", "h":
+		case "22", "help", "h":
 			fmt.Print(helpString)
 			fmt.Println(colorGreen + "Success" + colorReset)
 			break
-		case "17", "quit", "q":
+		case "23", "quit", "q":
 			running = false
 			fmt.Println(colorGreen + "Success" + colorReset)
 			break
@@ -188,6 +213,68 @@ func handleGetListenAddresses() {
 		return
 	}
 	fmt.Println(fmt.Sprintf("\t%v", listenAddresses))
+	fmt.Println(colorGreen + "\tSuccess" + colorReset)
+}
+
+func handleAllowNode() {
+	fmt.Print(colorYellow + "\tPeer Id: " + colorReset)
+	peerIdStr := readString()
+	peerId, err := peer.Decode(peerIdStr)
+	if err != nil {
+		fmt.Println(colorRed + fmt.Sprintf("\tError: %v", err) + colorReset)
+		return
+	}
+	access_manager.AllowNode(peerId)
+	fmt.Println(colorGreen + "\tSuccess" + colorReset)
+}
+
+func handleIsAllowedNode() {
+	fmt.Print(colorYellow + "\tPeer Id: " + colorReset)
+	peerIdStr := readString()
+	peerId, err := peer.Decode(peerIdStr)
+	if err != nil {
+		fmt.Println(colorRed + fmt.Sprintf("\tError: %v", err) + colorReset)
+		return
+	}
+	isAllowed := access_manager.IsAllowedNode(peerId)
+	fmt.Println(fmt.Sprintf("\t%v", isAllowed))
+	fmt.Println(colorGreen + "\tSuccess" + colorReset)
+}
+
+func handleGetAllowedNodes() {
+	allowedNodes := access_manager.GetAllowedNodes()
+	fmt.Println(fmt.Sprintf("\t%v", allowedNodes))
+	fmt.Println(colorGreen + "\tSuccess" + colorReset)
+}
+
+func handleBlockNode() {
+	fmt.Print(colorYellow + "\tPeer Id: " + colorReset)
+	peerIdStr := readString()
+	peerId, err := peer.Decode(peerIdStr)
+	if err != nil {
+		fmt.Println(colorRed + fmt.Sprintf("\tError: %v", err) + colorReset)
+		return
+	}
+	access_manager.BlockNode(peerId)
+	fmt.Println(colorGreen + "\tSuccess" + colorReset)
+}
+
+func handleIsBlockedNode() {
+	fmt.Print(colorYellow + "\tPeer Id: " + colorReset)
+	peerIdStr := readString()
+	peerId, err := peer.Decode(peerIdStr)
+	if err != nil {
+		fmt.Println(colorRed + fmt.Sprintf("\tError: %v", err) + colorReset)
+		return
+	}
+	isBlocked := access_manager.IsBlockedNode(peerId)
+	fmt.Println(fmt.Sprintf("\t%v", isBlocked))
+	fmt.Println(colorGreen + "\tSuccess" + colorReset)
+}
+
+func handleGetBlockedNodes() {
+	blockedNodes := access_manager.GetBlockedNodes()
+	fmt.Println(fmt.Sprintf("\t%v", blockedNodes))
 	fmt.Println(colorGreen + "\tSuccess" + colorReset)
 }
 

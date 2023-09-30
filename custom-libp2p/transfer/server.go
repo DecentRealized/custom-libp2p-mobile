@@ -2,6 +2,7 @@ package transfer
 
 import (
 	"fmt"
+	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/access_manager"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/config"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/file_handler"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/models"
@@ -252,7 +253,6 @@ func handleDeleteFile(writer http.ResponseWriter, requestSHA256 string, metadata
 
 // handleMessageRequest handles message requests
 func handleMessageRequest(writer http.ResponseWriter, request *http.Request) {
-	// TODO: If Peer Is Not Authorized send 403
 	if request.Method != http.MethodPost {
 		writer.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -262,6 +262,15 @@ func handleMessageRequest(writer http.ResponseWriter, request *http.Request) {
 		writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	if !access_manager.IsAllowedNode(peerId) && !access_manager.IsBlockedNode(peerId) {
+		// First timer (Honor this request, but block)
+		access_manager.BlockNode(peerId)
+	} else if access_manager.IsBlockedNode(peerId) {
+		writer.WriteHeader(http.StatusForbidden)
+		notifier.QueueInfo(fmt.Sprintf("Blocked node: %v tried to send message", peerId.String()))
+		return
+	}
+
 	maxMsgLen := int64(config.MaxMessageSize + 1)
 	bodyReader := io.LimitReader(request.Body, maxMsgLen)
 	msgBuff := make([]byte, maxMsgLen)

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/access_manager"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/file_handler"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/models"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/notifier"
@@ -57,6 +58,9 @@ func SendMessage(peerId peer.ID, message string) error {
 	if !ClientIsRunning() {
 		return ErrClientNotRunning
 	}
+	if !access_manager.IsAllowedNode(peerId) {
+		return ErrNotAllowedNode
+	}
 	messageData := &models.MessageData{
 		Data: &models.MessageData_StringMessage{StringMessage: message},
 	}
@@ -90,6 +94,9 @@ func PauseDownload(sha256Sum string, peerId peer.ID) error {
 func ResumeDownload(sha256Sum string, peerId peer.ID) error {
 	if !ClientIsRunning() {
 		return ErrClientNotRunning
+	}
+	if !access_manager.IsAllowedNode(peerId) {
+		return ErrNotAllowedNode
 	}
 	key := sha256Sum + peerId.String()
 	value, found := _client.isDownloading.Load(key)
@@ -184,18 +191,23 @@ func sendMessage(peerId peer.ID, message *models.MessageData) error {
 	if err != nil {
 		return err
 	}
-	if post.StatusCode != http.StatusOK {
+
+	switch post.StatusCode {
+	case http.StatusOK:
+		notifier.QueueMessage(&models.Message{
+			Metadata: &models.MessageMetadata{
+				From:      _node.ID().String(),
+				To:        peerId.String(),
+				Timestamp: uint64(time.Now().Unix()),
+			},
+			Data: message,
+		})
+		return nil
+	case http.StatusForbidden:
+		return ErrForbidden
+	default:
 		return ErrSendingMessage
 	}
-	notifier.QueueMessage(&models.Message{
-		Metadata: &models.MessageMetadata{
-			From:      _node.ID().String(),
-			To:        peerId.String(),
-			Timestamp: uint64(time.Now().Unix()),
-		},
-		Data: message,
-	})
-	return nil
 }
 
 // addDownloadingMetafile Adds downloading metafile
