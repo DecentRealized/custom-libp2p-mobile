@@ -148,7 +148,7 @@ func GetDownloadStatus(sha256Sum string, peerId peer.ID) (*models.DownloadStatus
 		return nil, ErrFileNotDownloading
 	}
 	isDownloading := value.(bool)
-	fileSize, err := file_handler.GetFileSize(getFilePath(metafile))
+	fileSize, err := file_handler.GetFileSize(getPartDownloading(metafile))
 	if err != nil {
 		return nil, err
 	}

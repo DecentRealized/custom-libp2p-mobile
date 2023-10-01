@@ -4,6 +4,7 @@ import (
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/access_manager"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/crypto"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/example"
+	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/file_handler"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/notifier"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/p2p"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/transfer"
@@ -75,6 +76,14 @@ var bridgeMapping = map[string]BridgeInfo{ // Maps flutter name to golang Bridge
 	"getBlockedNodes": {
 		function: access_manager.GetBlockedNodesBridge,
 		output:   &access_manager.GetBlockedNodesBridgeOutput{},
+	},
+	"setDownloadPath": {
+		input:    &file_handler.SetDownloadPathBridgeInput{},
+		function: file_handler.SetDownloadPathBridge,
+	},
+	"getDownloadPath": {
+		function: file_handler.GetDownloadPathBridge,
+		output:   &file_handler.GetDownloadPathBridgeOutput{},
 	},
 	"serveFile": {
 		input:    &transfer.ServeFileBridgeInput{},

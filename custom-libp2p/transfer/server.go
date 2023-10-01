@@ -336,12 +336,12 @@ func handleFileMessage(writer http.ResponseWriter, message *models.Message, peer
 	fileMetadata := message.GetData().GetFileMetadataMessage()
 	fileMetadata.SpecificData = &models.FileMetadata_ClientFileInfo{
 		ClientFileInfo: &models.ClientFileInfo{
-			BasePath:   config.DefaultDownloadPath,
+			BasePath:   file_handler.GetDownloadPath(),
 			FileServer: peerId.String(),
 		},
 	}
 	fileMetadata.FileName = filepath.Base(getNextAvailableFilePath(fileMetadata)) // Find Next best name
-	_, err := file_handler.GetFile(fileMetadata.GetFileName())                    // Reserve name now, use for renaming when downloaded
+	_, err := file_handler.GetFile(getFilePath(fileMetadata))                     // Reserve name now, use for renaming when downloaded
 	if err != nil {
 		notifier.QueueWarning(&models.Warning{
 			Error: err.Error(),

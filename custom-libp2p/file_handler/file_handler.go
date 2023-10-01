@@ -8,12 +8,12 @@ import (
 	"sync"
 )
 
-// NOTE: Read file through a reader!!!
-
 var openFileCache = &sync.Map{}
+var downloadPath = "./"
 
 func Reset() error {
 	openFileCache = &sync.Map{}
+	downloadPath = "./"
 	return nil
 }
 
@@ -76,4 +76,22 @@ func CloseFile(path string) error {
 	}
 	openFileCache.Delete(path)
 	return nil
+}
+
+// SetDownloadPath sets download
+func SetDownloadPath(path string) error {
+	stat, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if !stat.IsDir() {
+		return os.ErrInvalid
+	}
+	downloadPath = path
+	return nil
+}
+
+// GetDownloadPath gets download path
+func GetDownloadPath() string {
+	return downloadPath
 }

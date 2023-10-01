@@ -12,5 +12,3 @@ var BootstrapAddrs = []string{
 }
 
 const MdnsRendezvous = "file-drop-mdns-rendezvous"
-
-const DefaultDownloadPath = "./" // Maybe move to file_handler and make user configurable

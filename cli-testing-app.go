@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/access_manager"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/example"
+	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/file_handler"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/notifier"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/p2p"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/transfer"
@@ -42,6 +43,8 @@ var commands = []command{
 	{"blockNode", []string{}, handleBlockNode, "Block messages from this node"},
 	{"isBlockedNode", []string{}, handleIsBlockedNode, "Check if this node is blocked"},
 	{"getBlockedNodes", []string{}, handleGetBlockedNodes, "Gets all node Ids which are blocked"},
+	{"setDownloadPath", []string{}, handleSetDownloadPath, "Sets download path"},
+	{"getDownloadPath", []string{}, handleGetDownloadPath, "Gets download path"},
 	{"serveFile", []string{}, handleServeFile, "Serve file to peer from running node"},
 	{"stopServeFile", []string{}, handleStopServeFile, "Stop serving file with SHA256"},
 	{"sendMessage", []string{}, handleSendMessage, "Send message to peer from running node"},
@@ -264,6 +267,23 @@ func handleIsBlockedNode() {
 func handleGetBlockedNodes() {
 	blockedNodes := access_manager.GetBlockedNodes()
 	fmt.Println(fmt.Sprintf("\t%v", blockedNodes))
+	fmt.Println(colorGreen + "\tSuccess" + colorReset)
+}
+
+func handleSetDownloadPath() {
+	fmt.Print(colorYellow + "\tFile Path: " + colorReset)
+	filePath := readString()
+	err := file_handler.SetDownloadPath(filePath)
+	if err != nil {
+		fmt.Println(colorRed + fmt.Sprintf("\tError: %v", err) + colorReset)
+		return
+	}
+	fmt.Println(colorGreen + "\tSuccess" + colorReset)
+}
+
+func handleGetDownloadPath() {
+	downloadPath := file_handler.GetDownloadPath()
+	fmt.Println("\t" + downloadPath)
 	fmt.Println(colorGreen + "\tSuccess" + colorReset)
 }
 
