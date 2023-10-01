@@ -41,6 +41,15 @@ var bridgeMapping = map[string]BridgeInfo{ // Maps flutter name to golang Bridge
 		function: p2p.GetListenAddressesBridge,
 		output:   &p2p.GetListenAddressBridgeOutput{},
 	},
+	"connectToPeer": {
+		input:    &p2p.ConnectToPeerBridgeInput{},
+		function: p2p.ConnectToPeerBridge,
+	},
+	"checkConnectionStatus": {
+		input:    &p2p.CheckConnectionStatusBridgeInput{},
+		function: p2p.CheckConnectionStatusBridge,
+		output:   &p2p.CheckConnectionStatusBridgeOutput{},
+	},
 	"allowNode": {
 		input:    &access_manager.AllowNodeBridgeInput{},
 		function: access_manager.AllowNodeBridge,

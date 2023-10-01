@@ -21,116 +21,72 @@ const colorGreen = "\033[32m"
 const colorYellow = "\033[33m"
 const colorBlue = "\033[34m"
 
-const helpString string = "" +
-	"1.  getHelloMessage:    Hello Message\n" +
-	"2.  createKeyPair:      crates crypto key pair\n" +
-	"3.  createRandomNode:   creates random node\n" +
-	"4.  getNodeId:          get node id of running node\n" +
-	"5.  getListenAddresses: get listen addresses of running node\n" +
-	"6.  allowNode:          Allow messages from this node\n" +
-	"7.  isAllowedNode:      Check if this node is allowed to send messages\n" +
-	"8.  getAllowedNodes:    Get all node Ids which can send messages\n" +
-	"9.  blockNode:          Block messages from this node\n" +
-	"10. isBlockedNode:      Check if this node is blocked\n" +
-	"11. getBlockedNodes:    Gets all node Ids which are blocked\n" +
-	"12. serveFile:          serve file to peer from running node\n" +
-	"13. stopServeFile:      stop serving file with SHA256\n" +
-	"14. sendMessage:        send message to peer from running node\n" +
-	"15. pauseDownload:      pause downloading file with SHA256 from peer\n" +
-	"16. resumeDownload:     resume downloading file with SHA256 from peer\n" +
-	"17. stopDownload:       stop downloading file with SHA256 from peer\n" +
-	"18. getDownloadStatus:  get status of downloading file with SHA256 from peer\n" +
-	"19. flushNotifications: flush notifications asynchronously\n" +
-	"20. stopNode:           stop running node\n" +
-	"21. setVar (s):         set variables for debug purposes (use using {varName})\n" +
-	"22. help   (h):         show help\n" +
-	"23. quit   (q):         stop program\n"
+type command struct {
+	name        string
+	aliases     []string
+	handler     func()
+	description string
+}
+
+var commands = []command{
+	{"getHelloMessage", []string{}, handleHelloMessage, "Prints Hello Message"},
+	{"createKeyPair", []string{}, handleCreateKeyPair, "Creates crypto key pair"},
+	{"createRandomNode", []string{}, handleCreateRandomNode, "Creates random node"},
+	{"getNodeId", []string{}, handleGetNodeId, "Gets node id"},
+	{"getListenAddresses", []string{}, handleGetListenAddresses, "Gets listen addresses"},
+	{"connectToPeer", []string{}, handleConnectToPeer, "Connects to peer"},
+	{"checkConnectionStatus", []string{}, handleCheckConnectionStatus, "Checks connection status"},
+	{"allowNode", []string{}, handleAllowNode, "Allow messages from this node"},
+	{"isAllowedNode", []string{}, handleIsAllowedNode, "Check if this node is allowed to send messages"},
+	{"getAllowedNodes", []string{}, handleGetAllowedNodes, "Get all node Ids which can send messages"},
+	{"blockNode", []string{}, handleBlockNode, "Block messages from this node"},
+	{"isBlockedNode", []string{}, handleIsBlockedNode, "Check if this node is blocked"},
+	{"getBlockedNodes", []string{}, handleGetBlockedNodes, "Gets all node Ids which are blocked"},
+	{"serveFile", []string{}, handleServeFile, "Serve file to peer from running node"},
+	{"stopServeFile", []string{}, handleStopServeFile, "Stop serving file with SHA256"},
+	{"sendMessage", []string{}, handleSendMessage, "Send message to peer from running node"},
+	{"pauseDownload", []string{}, handlePauseDownload, "Pause downloading file with SHA256 from peer"},
+	{"resumeDownload", []string{}, handleResumeDownload, "Resume downloading file with SHA256 from peer"},
+	{"stopDownload", []string{}, handleStopDownload, "Stop downloading file with SHA256 from peer"},
+	{"getDownloadStatus", []string{}, handleGetDownloadStatus, "Get download status of file with SHA256"},
+	{"flushNotifications", []string{}, handleFlushNotifications, "Flush notifications asynchronously"},
+	{"stopNode", []string{}, handleStopNode, "Stop running node"},
+	{"setVar", []string{"s", "S"}, handleSetVar, "Set variables for debug purposes"},
+}
 
 var mapVar = make(map[string]string)
 
 func main() {
-	running := true
-	fmt.Print(helpString)
-	for running {
+	commands = append(commands,
+		command{"help", []string{"h", "H"}, handleHelp, "Show help"},
+		command{"quit", []string{"q", "Q"}, handleQuit, "Quit program"})
+	handleHelp()
+	for true {
 		fmt.Print(colorYellow + "Enter Your Command: " + colorReset)
 		function := readString()
-		switch function {
-		case "":
-			break
-		case "1", "getHelloMessage":
-			handleHelloMessage()
-			break
-		case "2", "createKeyPair":
-			handleCreateKeyPair()
-			break
-		case "3", "createRandomNode":
-			handleCreateRandomNode()
-			break
-		case "4", "getNodeId":
-			handleGetNodeId()
-			break
-		case "5", "getListenAddresses":
-			handleGetListenAddresses()
-			break
-		case "6", "allowNode":
-			handleAllowNode()
-			break
-		case "7", "isAllowedNode":
-			handleIsAllowedNode()
-			break
-		case "8", "getAllowedNodes":
-			handleGetAllowedNodes()
-			break
-		case "9", "blockNode":
-			handleBlockNode()
-			break
-		case "10", "isBlockedNode":
-			handleIsBlockedNode()
-			break
-		case "11", "getBlockedNodes":
-			handleGetBlockedNodes()
-			break
-		case "12", "serveFile":
-			handleServeFile()
-			break
-		case "13", "stopServeFile":
-			handleStopServeFile()
-			break
-		case "14", "sendMessage":
-			handleSendMessage()
-			break
-		case "15", "pauseDownload":
-			handlePauseDownload()
-			break
-		case "16", "resumeDownload":
-			handleResumeDownload()
-			break
-		case "17", "stopDownload":
-			handleStopDownload()
-			break
-		case "18", "getDownloadStatus":
-			handleGetDownloadStatus()
-			break
-		case "19", "flushNotifications", "flush", "print", "f":
-			handleFlushNotifications()
-			break
-		case "20", "stopNode":
-			handleStopNode()
-			break
-		case "21", "setVar", "s":
-			handleSetVar()
-			break
-		case "22", "help", "h":
-			fmt.Print(helpString)
-			fmt.Println(colorGreen + "Success" + colorReset)
-			break
-		case "23", "quit", "q":
-			running = false
-			fmt.Println(colorGreen + "Success" + colorReset)
-			break
-		default:
-			fmt.Println(colorRed + "Error: invalid command!" + colorReset)
-			break
+		for i := 0; i < len(commands); i++ {
+			// Call by index
+			if fmt.Sprintf("%v", i+1) == function {
+				commands[i].handler()
+				break
+			}
+			// Call by alias
+			called := false
+			for j := 0; j < len(commands[i].aliases); j++ {
+				if commands[i].aliases[j] == function {
+					commands[i].handler()
+					called = true
+					break
+				}
+			}
+			if called {
+				break
+			}
+			// Call by name
+			if commands[i].name == function {
+				commands[i].handler()
+				break
+			}
 		}
 	}
 }
@@ -213,6 +169,39 @@ func handleGetListenAddresses() {
 		return
 	}
 	fmt.Println(fmt.Sprintf("\t%v", listenAddresses))
+	fmt.Println(colorGreen + "\tSuccess" + colorReset)
+}
+
+func handleConnectToPeer() {
+	fmt.Print(colorYellow + "\tPeer Id: " + colorReset)
+	peerIdStr := readString()
+	peerId, err := peer.Decode(peerIdStr)
+	if err != nil {
+		fmt.Println(colorRed + fmt.Sprintf("\tError: %v", err) + colorReset)
+		return
+	}
+	err = p2p.ConnectToPeer(peerId)
+	if err != nil {
+		fmt.Println(colorRed + fmt.Sprintf("\tError: %v", err) + colorReset)
+		return
+	}
+	fmt.Println(colorGreen + "\tSuccess" + colorReset)
+}
+
+func handleCheckConnectionStatus() {
+	fmt.Print(colorYellow + "\tPeer Id: " + colorReset)
+	peerIdStr := readString()
+	peerId, err := peer.Decode(peerIdStr)
+	if err != nil {
+		fmt.Println(colorRed + fmt.Sprintf("\tError: %v", err) + colorReset)
+		return
+	}
+	connections, err := p2p.CheckConnectionStatus(peerId)
+	if err != nil {
+		fmt.Println(colorRed + fmt.Sprintf("\tError: %v", err) + colorReset)
+		return
+	}
+	fmt.Println(fmt.Sprintf("\t%v", connections))
 	fmt.Println(colorGreen + "\tSuccess" + colorReset)
 }
 
@@ -419,6 +408,43 @@ func handleStopNode() {
 		return
 	}
 	fmt.Println(colorGreen + "\tSuccess" + colorReset)
+}
+
+func handleHelp() {
+	firstSize := 0
+	secondSize := 0
+	thirdSize := 0
+	for i := 0; i < len(commands); i++ {
+		curFirstSize := len(colorReset + fmt.Sprintf("%v. ", i+1))
+		curSecondSize := len(fmt.Sprintf("%v: ", commands[i].name))
+		curThirdSize := len(commands[i].description)
+		if firstSize < curFirstSize {
+			firstSize = curFirstSize
+		}
+		if secondSize < curSecondSize {
+			secondSize = curSecondSize
+		}
+		if thirdSize < curThirdSize {
+			thirdSize = curThirdSize
+		}
+	}
+	for i := 0; i < len(commands); i++ {
+		first := colorReset + fmt.Sprintf("%v. ", i+1)
+		first += strings.Repeat(" ", firstSize-len(first))
+		second := fmt.Sprintf("%v: ", commands[i].name)
+		second += strings.Repeat(" ", secondSize-len(second))
+		third := commands[i].description
+		third += strings.Repeat(" ", thirdSize-len(third))
+		fourth := ""
+		for _, alias := range commands[i].aliases {
+			fourth += fmt.Sprintf(" [%v]", alias)
+		}
+		fmt.Printf("%v%v%v%v\n", first, second, third, fourth)
+	}
+}
+
+func handleQuit() {
+	os.Exit(0)
 }
 
 func handleSetVar() {

@@ -3,6 +3,7 @@ package p2p
 import (
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/models"
 	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -46,4 +47,35 @@ func GetListenAddressesBridge(proto.Message) (proto.Message, error) {
 		stringAddresses[i] = address.String()
 	}
 	return &GetListenAddressBridgeOutput{Message: stringAddresses}, nil
+}
+
+type ConnectToPeerBridgeInput = models.StringMessage
+
+func ConnectToPeerBridge(request proto.Message) (proto.Message, error) {
+	connectToNodeRequest := request.(*ConnectToPeerBridgeInput)
+	peerId, err := peer.Decode(connectToNodeRequest.Message)
+	if err != nil {
+		return nil, err
+	}
+	return nil, ConnectToPeer(peerId)
+}
+
+type CheckConnectionStatusBridgeInput = models.StringMessage
+type CheckConnectionStatusBridgeOutput = models.StringArrayMessage
+
+func CheckConnectionStatusBridge(request proto.Message) (proto.Message, error) {
+	checkConnectionStatusRequest := request.(*CheckConnectionStatusBridgeInput)
+	peerId, err := peer.Decode(checkConnectionStatusRequest.Message)
+	if err != nil {
+		return nil, err
+	}
+	connections, err := CheckConnectionStatus(peerId)
+	if err != nil {
+		return nil, err
+	}
+	consString := make([]string, len(connections))
+	for i, connection := range connections {
+		consString[i] = connection.ID()
+	}
+	return &CheckConnectionStatusBridgeOutput{Message: consString}, nil
 }

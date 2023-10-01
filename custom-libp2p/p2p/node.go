@@ -1,6 +1,7 @@
 package p2p
 
 import (
+	"context"
 	"fmt"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/access_manager"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/file_handler"
@@ -9,6 +10,7 @@ import (
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/transfer"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	routedhost "github.com/libp2p/go-libp2p/p2p/host/routed"
 	"github.com/multiformats/go-multiaddr"
@@ -101,6 +103,22 @@ func GetNodeId() (peer.ID, error) {
 func GetListenAddresses() ([]multiaddr.Multiaddr, error) {
 	if node != nil {
 		return node.Addrs(), nil
+	}
+	return nil, ErrNodeDoesNotExist
+}
+
+// ConnectToPeer Connects to the given node
+func ConnectToPeer(peerId peer.ID) error {
+	if node != nil {
+		return node.Connect(context.TODO(), peer.AddrInfo{ID: peerId})
+	}
+	return ErrNodeDoesNotExist
+}
+
+// CheckConnectionStatus Checks connection status
+func CheckConnectionStatus(peerId peer.ID) ([]network.Conn, error) {
+	if node != nil {
+		return node.Network().ConnsToPeer(peerId), nil
 	}
 	return nil, ErrNodeDoesNotExist
 }
