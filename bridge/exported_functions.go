@@ -39,12 +39,12 @@ var bridgeMapping = map[string]BridgeInfo{ // Maps flutter name to golang Bridge
 			"    }\n" +
 			"    var _tmp = models.StringMessage();\n" +
 			"    _tmp.message = _defaultDownloadDir.path;\n" +
-			"    await setDownloadPath(_tmp);\n" +
+			"    await _setDownloadPath(_tmp);\n" +
 			"    Directory _defaultDbBaseDir = await getApplicationSupportDirectory();\n" +
 			"    var _defaultDbDirPath = p.join(_defaultDbBaseDir.path, '.db');\n" +
 			"    Directory _defaultDbDir = await Directory(_defaultDbDirPath).create();\n" +
 			"    _tmp.message = _defaultDbDir.path;\n" +
-			"    await setDatabaseDirectory(_tmp);",
+			"    await _setDatabaseDirectory(_tmp);",
 		input:    &p2p.CreateNodeBridgeInput{},
 		function: p2p.CreateNodeBridge,
 	},
@@ -94,7 +94,7 @@ var bridgeMapping = map[string]BridgeInfo{ // Maps flutter name to golang Bridge
 		function: access_manager.GetBlockedNodesBridge,
 		output:   &access_manager.GetBlockedNodesBridgeOutput{},
 	},
-	"setDownloadPath": {
+	"_setDownloadPath": {
 		input:    &file_handler.SetDownloadPathBridgeInput{},
 		function: file_handler.SetDownloadPathBridge,
 	},
@@ -102,7 +102,7 @@ var bridgeMapping = map[string]BridgeInfo{ // Maps flutter name to golang Bridge
 		function: file_handler.GetDownloadPathBridge,
 		output:   &file_handler.GetDownloadPathBridgeOutput{},
 	},
-	"setDatabaseDirectory": {
+	"_setDatabaseDirectory": {
 		input:    &database.SetDatabaseDirectoryBridgeInput{},
 		function: database.SetDatabaseDirectoryBridge,
 	},
@@ -140,7 +140,7 @@ var bridgeMapping = map[string]BridgeInfo{ // Maps flutter name to golang Bridge
 		function: transfer.GetDownloadStatusBridge,
 		output:   &transfer.GetDownloadStatusBridgeOutput{},
 	},
-	"flushNotifications": {
+	"_flushNotifications": {
 		function: notifier.FlushNotificationsBridge,
 		output:   &notifier.FlushNotificationsBridgeOutput{},
 	},

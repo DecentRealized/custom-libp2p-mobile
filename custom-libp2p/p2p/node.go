@@ -42,9 +42,6 @@ func CreateNode(privateKey crypto.PrivKey, useInternet bool) error {
 		notifier.QueueWarning(&models.Warning{Error: err.Error(), Info: "Failed to create MDNS service"})
 	}
 	node = &models.Node{RoutedHost: *routedhost.Wrap(_node, dht), Mdns: mdns}
-	if err != nil { // Critical
-		return err
-	}
 	// Initialize Other Modules
 	err = transfer.Init(node)
 	if err != nil {

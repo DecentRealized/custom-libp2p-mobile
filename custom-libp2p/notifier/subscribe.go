@@ -9,7 +9,7 @@ func FlushNotifications() (*models.Notifications, error) {
 	if len(notificationChannel) == 0 {
 		latestNotification, open := <-notificationChannel
 		if !open {
-			return nil, ErrClosed
+			return nil, ErrNotifierClosed
 		}
 		return &models.Notifications{Notification: []*models.Notification{latestNotification}}, nil
 	}
