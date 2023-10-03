@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/access_manager"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/config"
+	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/database"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/file_handler"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/models"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/notifier"
+	"github.com/dgraph-io/badger/v4"
 	gostream "github.com/libp2p/go-libp2p-gostream"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"golang.org/x/exp/slices"
@@ -16,22 +18,18 @@ import (
 	"net/http"
 	"path/filepath"
 	"strconv"
-	"sync"
 	"time"
 )
 
 type server struct {
-	listener         *net.Listener
-	server           *http.Server
-	servingMetafiles *sync.Map // key: file_SHA256, value: *models.FileMetadata
+	listener *net.Listener
+	server   *http.Server
 }
+
+const _servingMetafilesKeyBase = "transfer/server/servingMetafiles" // key: file_SHA256, value: *models.FileMetadata
 
 // initServer initializes the server
 func initServer(node *models.Node) error {
-	// TODO: Load serving from DB
-	_server := _server
-	_server.servingMetafiles = &sync.Map{}
-
 	node.SetStreamHandler(holePunchSyncStreamProtocolID, handleHolePunchSyncStream)
 	listener, err := gostream.Listen(node, protocolID)
 	if err != nil {
@@ -83,7 +81,6 @@ func closeServer() error {
 	if err != nil {
 		return err
 	}
-	_server.servingMetafiles = nil
 	return nil
 }
 
@@ -92,7 +89,11 @@ func ServeFile(filePath string, peerId peer.ID) (*models.FileMetadata, error) {
 	if !ServerIsRunning() {
 		return nil, ErrServerNotRunning
 	}
-	if !access_manager.IsAllowedNode(peerId) {
+	isAllowed, err := access_manager.IsAllowedNode(peerId)
+	if err != nil {
+		return nil, err
+	}
+	if !isAllowed {
 		return nil, ErrNotAllowedNode
 	}
 	file, err := file_handler.GetFile(filePath)
@@ -107,31 +108,55 @@ func ServeFile(filePath string, peerId peer.ID) (*models.FileMetadata, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, exists := _server.servingMetafiles.Load(sha256sum)
+	dbKey := []byte(filepath.Join(_servingMetafilesKeyBase, sha256sum))
+	_, err = database.Load(dbKey)
+	if err != nil && err != badger.ErrKeyNotFound {
+		return nil, err
+	}
+	exists := err != badger.ErrKeyNotFound
 	if !exists {
 		fSize, err := file_handler.GetFileSize(filePath)
 		if err != nil {
 			return nil, err
 		}
-		_server.servingMetafiles.Store(
-			sha256sum,
-			&models.FileMetadata{
-				FileName:   filepath.Base(filePath),
-				FileSha256: sha256sum,
-				FileSize:   fSize,
-				SpecificData: &models.FileMetadata_ServerFileInfo{ServerFileInfo: &models.ServerFileInfo{
-					BasePath:            filepath.Dir(filePath),
-					AuthorizedAccessors: []string{},
-				}},
-			},
-		)
+		createdMetadata := &models.FileMetadata{
+			FileName:   filepath.Base(filePath),
+			FileSha256: sha256sum,
+			FileSize:   fSize,
+			SpecificData: &models.FileMetadata_ServerFileInfo{ServerFileInfo: &models.ServerFileInfo{
+				BasePath:            filepath.Dir(filePath),
+				AuthorizedAccessors: []string{},
+			}},
+		}
+		value, err := proto.Marshal(createdMetadata)
+		if err != nil {
+			return nil, err
+		}
+		err = database.Store(dbKey, value)
+		if err != nil {
+			return nil, err
+		}
 	}
-	value, _ := _server.servingMetafiles.Load(sha256sum)
-	metadata := value.(*models.FileMetadata)
+	metadataBytes, err := database.Load(dbKey)
+	if err != nil {
+		return nil, err
+	}
+	metadata := &models.FileMetadata{}
+	err = proto.Unmarshal(metadataBytes, metadata)
+	if err != nil {
+		return nil, err
+	}
 	metadata.GetServerFileInfo().AuthorizedAccessors = append(metadata.GetServerFileInfo().AuthorizedAccessors,
 		peerId.String())
-	err = sendFileMessage(peerId, metadata)
-	return metadata, err
+	metadataBytes, err = proto.Marshal(metadata)
+	if err != nil {
+		return nil, err
+	}
+	err = database.Store(dbKey, metadataBytes)
+	if err != nil {
+		return nil, err
+	}
+	return metadata, sendFileMessage(peerId, metadata)
 }
 
 // StopServingFile stops serving the file
@@ -139,17 +164,23 @@ func StopServingFile(fileSHA256 string) error {
 	if !ServerIsRunning() {
 		return ErrServerNotRunning
 	}
-	value, found := _server.servingMetafiles.Load(fileSHA256)
-	if !found {
+	dbKey := []byte(filepath.Join(_servingMetafilesKeyBase, fileSHA256))
+	metadataBytes, err := database.Load(dbKey)
+	if err == badger.ErrKeyNotFound {
 		return ErrFileNotServing
+	} else if err != nil {
+		return err
 	}
-	metadata := value.(*models.FileMetadata)
-	err := file_handler.CloseFile(getFilePath(metadata))
+	metadata := &models.FileMetadata{}
+	err = proto.Unmarshal(metadataBytes, metadata)
 	if err != nil {
 		return err
 	}
-	_server.servingMetafiles.Delete(fileSHA256)
-	return nil
+	err = file_handler.CloseFile(getFilePath(metadata))
+	if err != nil {
+		return err
+	}
+	return database.Delete(dbKey)
 }
 
 // handleFileDownloadRequest handles file download requests
@@ -159,21 +190,52 @@ func handleFileDownloadRequest(writer http.ResponseWriter, request *http.Request
 		writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	if !access_manager.IsAllowedNode(_clientAddr) {
+	isAllowed, err := access_manager.IsAllowedNode(_clientAddr)
+	if err != nil {
+		notifier.QueueWarning(&models.Warning{
+			Error: err.Error(),
+			Info:  "Error in checking if node is allowed",
+		})
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if !isAllowed {
 		writer.WriteHeader(http.StatusForbidden)
 		notifier.QueueInfo(fmt.Sprintf("Blocked node: %v tried to download file", _clientAddr.String()))
 		return
 	}
 	requestSHA256 := request.URL.Query().Get("sha256")
-	value, exists := _server.servingMetafiles.Load(requestSHA256)
-	if !exists {
-		writer.WriteHeader(http.StatusNotFound)
+	dbKey := []byte(filepath.Join(_servingMetafilesKeyBase, requestSHA256))
+	metadataBytes, err := database.Load(dbKey)
+	if err != nil {
+		if err == badger.ErrKeyNotFound {
+			writer.WriteHeader(http.StatusNotFound)
+		} else {
+			writer.WriteHeader(http.StatusInternalServerError)
+		}
+		notifier.QueueWarning(&models.Warning{
+			Info:  fmt.Sprintf("Client: %v tried to download file: %v", _clientAddr.String(), requestSHA256),
+			Error: err.Error(),
+		})
 		return
 	}
-	metadata := value.(*models.FileMetadata)
+	metadata := &models.FileMetadata{}
+	err = proto.Unmarshal(metadataBytes, metadata)
+	if err != nil {
+		writer.WriteHeader(http.StatusInternalServerError)
+		notifier.QueueWarning(&models.Warning{
+			Info:  fmt.Sprintf("Client: %v tried to download file: %v", _clientAddr.String(), requestSHA256),
+			Error: err.Error(),
+		})
+		return
+	}
 	allowed := slices.Contains(metadata.GetServerFileInfo().AuthorizedAccessors, _clientAddr.String())
 	if !allowed {
 		writer.WriteHeader(http.StatusNotFound)
+		notifier.QueueWarning(&models.Warning{
+			Info:  fmt.Sprintf("Client: %v tried to download file: %v", _clientAddr.String(), requestSHA256),
+			Error: err.Error(),
+		})
 		return
 	}
 	if request.Method == http.MethodDelete {
@@ -274,10 +336,36 @@ func handleMessageRequest(writer http.ResponseWriter, request *http.Request) {
 		writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	if !access_manager.IsAllowedNode(peerId) && !access_manager.IsBlockedNode(peerId) {
+	isAllowed, err := access_manager.IsAllowedNode(peerId)
+	if err != nil {
+		writer.WriteHeader(http.StatusInternalServerError)
+		notifier.QueueWarning(&models.Warning{
+			Error: err.Error(),
+			Info:  "Error in checking if node is allowed",
+		})
+		return
+	}
+	isBlocked, err := access_manager.IsBlockedNode(peerId)
+	if err != nil {
+		writer.WriteHeader(http.StatusInternalServerError)
+		notifier.QueueWarning(&models.Warning{
+			Error: err.Error(),
+			Info:  "Error in checking if node is blocked",
+		})
+		return
+	}
+	if !isAllowed && !isBlocked {
 		// First timer (Honor this request, but block)
-		access_manager.BlockNode(peerId)
-	} else if access_manager.IsBlockedNode(peerId) {
+		err := access_manager.BlockNode(peerId)
+		if err != nil {
+			writer.WriteHeader(http.StatusInternalServerError)
+			notifier.QueueWarning(&models.Warning{
+				Error: err.Error(),
+				Info:  "Error in blocking node",
+			})
+			return
+		}
+	} else if isBlocked {
 		writer.WriteHeader(http.StatusForbidden)
 		notifier.QueueInfo(fmt.Sprintf("Blocked node: %v tried to send message", peerId.String()))
 		return

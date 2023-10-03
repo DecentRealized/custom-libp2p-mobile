@@ -3,6 +3,7 @@ package custom_libp2p_bridge
 import (
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/access_manager"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/crypto"
+	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/database"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/example"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/file_handler"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/notifier"
@@ -12,9 +13,11 @@ import (
 )
 
 type BridgeInfo struct {
-	input    proto.Message                              // Used for inferring input type for decoding bytes
-	function func(proto.Message) (proto.Message, error) // Call This bridge func
-	output   proto.Message                              // Used for inferring output type for generating dart utils
+	preCallWrapper  string                                     // Insert this before auto generated logic
+	input           proto.Message                              // Used for inferring input type for decoding bytes
+	function        func(proto.Message) (proto.Message, error) // Call This bridge func
+	output          proto.Message                              // Used for inferring output type for generating dart utils
+	postCallWrapper string                                     // Insert this after auto generated logic
 }
 
 var bridgeMapping = map[string]BridgeInfo{ // Maps flutter name to golang BridgeInfo
@@ -28,6 +31,20 @@ var bridgeMapping = map[string]BridgeInfo{ // Maps flutter name to golang Bridge
 		output:   &crypto.CreateKeyPairBridgeOutput{},
 	},
 	"createNode": {
+		// Set Downloads and database directories
+		preCallWrapper: "" +
+			"    Directory? _defaultDownloadDir = await getDownloadsDirectory();\n" +
+			"    if (_defaultDownloadDir == null) {\n" +
+			"      _defaultDownloadDir = await getApplicationDocumentsDirectory();\n" +
+			"    }\n" +
+			"    var _tmp = models.StringMessage();\n" +
+			"    _tmp.message = _defaultDownloadDir.path;\n" +
+			"    await setDownloadPath(_tmp);\n" +
+			"    Directory _defaultDbBaseDir = await getApplicationSupportDirectory();\n" +
+			"    var _defaultDbDirPath = p.join(_defaultDbBaseDir.path, '.db');\n" +
+			"    Directory _defaultDbDir = await Directory(_defaultDbDirPath).create();\n" +
+			"    _tmp.message = _defaultDbDir.path;\n" +
+			"    await setDatabaseDirectory(_tmp);",
 		input:    &p2p.CreateNodeBridgeInput{},
 		function: p2p.CreateNodeBridge,
 	},
@@ -84,6 +101,14 @@ var bridgeMapping = map[string]BridgeInfo{ // Maps flutter name to golang Bridge
 	"getDownloadPath": {
 		function: file_handler.GetDownloadPathBridge,
 		output:   &file_handler.GetDownloadPathBridgeOutput{},
+	},
+	"setDatabaseDirectory": {
+		input:    &database.SetDatabaseDirectoryBridgeInput{},
+		function: database.SetDatabaseDirectoryBridge,
+	},
+	"getDatabaseDirectory": {
+		function: database.GetDatabaseDirectoryBridge,
+		output:   &database.GetDatabaseDirectoryBridgeOutput{},
 	},
 	"serveFile": {
 		input:    &transfer.ServeFileBridgeInput{},

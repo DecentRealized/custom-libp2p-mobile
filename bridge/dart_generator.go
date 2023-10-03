@@ -39,25 +39,30 @@ func CreateModelExporter(protocolDir string, outputPath string) error {
 	return os.WriteFile(outputPath, []byte(code), 0644)
 }
 
+const DartBridgeClassName = "CustomLibP2P"
+
 func CreateDartBinding(outputPath string) error {
-	code := `// Auto Generated Code. Do Not Edit.
+	code := fmt.Sprintf(`// Auto Generated Code. Do Not Edit.
 import 'dart:async';
+import 'dart:io';
 
 import 'package:custom_libp2p/bridge/binding_stub.dart'
     if (dart.library.io) 'package:custom_libp2p/bridge/binding.dart'
     if (dart.library.js) 'package:custom_libp2p/bridge/binding_stub.dart';
 import 'package:custom_libp2p/models/models.dart' as models;
 import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
-class CustomLibP2PException implements Exception {
+class %vException implements Exception {
   String cause;
 
-  CustomLibP2PException(this.cause) {
-    print("CustomLibP2PException: $cause");
+  %vException(this.cause) {
+    print("%vException: $cause");
   }
 }
 
-class CustomLibP2P {
+class %v {
   static const MethodChannel _channel = const MethodChannel('custom_libp2p');
   static bool bindingEnabled = Binding().isSupported();
 
@@ -67,7 +72,7 @@ class CustomLibP2P {
     }
     return await _channel.invokeMethod(name, payload);
   }
-`
+`, DartBridgeClassName, DartBridgeClassName, DartBridgeClassName, DartBridgeClassName)
 	for name, info := range bridgeMapping {
 		if info.output != nil {
 			output := reflect.TypeOf(info.output).String()
@@ -89,7 +94,7 @@ class CustomLibP2P {
 			code += "()"
 		}
 		code += " async {\n"
-
+		code += info.preCallWrapper
 		if info.input != nil {
 			code += fmt.Sprintf("    var bytesInput = input.writeToBuffer();\n")
 		} else {
@@ -106,6 +111,7 @@ class CustomLibP2P {
 		} else {
 			code += fmt.Sprintf("    await _call('%s', bytesInput);\n", name)
 		}
+		code += info.postCallWrapper
 		code += "  }\n"
 	}
 	code += "}"

@@ -56,11 +56,11 @@ func newDHTRouting(node *host.Host) (*dht.IpfsDHT, error) {
 }
 
 // newMDNSService Initialize the MDNS service
-func newMDNSService(node *host.Host) error {
+func newMDNSService(node *host.Host) (mdns.Service, error) {
 	mn := mdnsNotifee{node}
 	ser := mdns.NewMdnsService(*node, config.MdnsRendezvous, mn)
 	err := ser.Start()
-	return err
+	return ser, err
 }
 
 type mdnsNotifee struct {

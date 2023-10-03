@@ -82,7 +82,6 @@ func handleHolePunchSyncStream(stream core.Stream) {
 				Info:  "Failed to write to hole punch sync stream",
 			})
 		}
-		notifier.QueueInfo(fmt.Sprintf("Received: %v", buff))
 	}
 }
 
@@ -145,6 +144,7 @@ func removePeer(metadata *models.FileMetadata, _peer peer.ID) {
 	}
 }
 
+// verifySHA256 verifies sha256
 func verifySHA256(metadata *models.FileMetadata, file *os.File) error {
 	sha256Sum, err := file_handler.GetSHA256Sum(file)
 	if err != nil {
@@ -156,6 +156,7 @@ func verifySHA256(metadata *models.FileMetadata, file *os.File) error {
 	return nil
 }
 
+// getNextAvailableFilePath returns next available file path for saving file
 func getNextAvailableFilePath(metadata *models.FileMetadata) string {
 	newFilePath := getFilePath(metadata)
 	if _, err := os.Stat(newFilePath); err == nil {

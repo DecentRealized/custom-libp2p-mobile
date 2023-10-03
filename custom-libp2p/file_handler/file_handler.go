@@ -3,6 +3,8 @@ package file_handler
 import (
 	"crypto/sha256"
 	"encoding/base64"
+	"fmt"
+	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/notifier"
 	"io"
 	"os"
 	"sync"
@@ -88,6 +90,7 @@ func SetDownloadPath(path string) error {
 		return os.ErrInvalid
 	}
 	downloadPath = path
+	notifier.QueueInfo(fmt.Sprintf("Download path set to: %v", downloadPath))
 	return nil
 }
 

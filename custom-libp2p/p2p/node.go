@@ -3,7 +3,7 @@ package p2p
 import (
 	"context"
 	"fmt"
-	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/access_manager"
+	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/database"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/file_handler"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/models"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/notifier"
@@ -15,8 +15,6 @@ import (
 	routedhost "github.com/libp2p/go-libp2p/p2p/host/routed"
 	"github.com/multiformats/go-multiaddr"
 )
-
-// TODO: Take persistent data while creating node [Allowed list, Serving files, downloading files, download path]
 
 // CreateNode Destroys existing node if present and creates new
 func CreateNode(privateKey crypto.PrivKey, useInternet bool) error {
@@ -39,11 +37,11 @@ func CreateNode(privateKey crypto.PrivKey, useInternet bool) error {
 	if err != nil {
 		return err
 	}
-	err = newMDNSService(&_node)
+	mdns, err := newMDNSService(&_node)
 	if err != nil {
 		notifier.QueueWarning(&models.Warning{Error: err.Error(), Info: "Failed to create MDNS service"})
 	}
-	node = &models.Node{RoutedHost: *routedhost.Wrap(_node, dht)}
+	node = &models.Node{RoutedHost: *routedhost.Wrap(_node, dht), Mdns: mdns}
 	if err != nil { // Critical
 		return err
 	}
@@ -52,7 +50,10 @@ func CreateNode(privateKey crypto.PrivKey, useInternet bool) error {
 	if err != nil {
 		return err
 	}
-
+	err = database.Init(node)
+	if err != nil {
+		return err
+	}
 	notifier.QueueInfo(fmt.Sprintf("Node with ID %s created", node.ID()))
 	return nil
 }
@@ -64,7 +65,11 @@ func StopNode() error {
 	if node == nil {
 		return ErrNodeDoesNotExist
 	}
-	err := node.Close()
+	err := node.Mdns.Close()
+	if err != nil {
+		notifier.QueueWarning(&models.Warning{Error: err.Error(), Info: "Failed to close MDNS service"})
+	}
+	err = node.Close()
 	if err != nil {
 		return err
 	}
@@ -82,7 +87,7 @@ func StopNode() error {
 	if err != nil {
 		return err
 	}
-	err = access_manager.Reset()
+	err = database.Close()
 	if err != nil {
 		return err
 	}

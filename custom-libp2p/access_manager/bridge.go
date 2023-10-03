@@ -14,8 +14,7 @@ func AllowNodeBridge(request proto.Message) (proto.Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	AllowNode(peerId)
-	return nil, nil
+	return nil, AllowNode(peerId)
 }
 
 type IsAllowedNodeBridgeInput = models.StringMessage
@@ -27,7 +26,10 @@ func IsAllowedNodeBridge(request proto.Message) (proto.Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	isAllowed := IsAllowedNode(peerId)
+	isAllowed, err := IsAllowedNode(peerId)
+	if err != nil {
+		return nil, err
+	}
 	return &IsAllowedNodeBridgeOutput{
 		Message: isAllowed,
 	}, nil
@@ -36,7 +38,10 @@ func IsAllowedNodeBridge(request proto.Message) (proto.Message, error) {
 type GetAllowedNodesBridgeOutput = models.StringArrayMessage
 
 func GetAllowedNodesBridge(proto.Message) (proto.Message, error) {
-	allowedNodes := GetAllowedNodes()
+	allowedNodes, err := GetAllowedNodes()
+	if err != nil {
+		return nil, err
+	}
 	stringAllowedIds := make([]string, len(allowedNodes))
 	for i, address := range allowedNodes {
 		stringAllowedIds[i] = address.String()
@@ -52,8 +57,7 @@ func BlockNodeBridge(request proto.Message) (proto.Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	BlockNode(peerId)
-	return nil, nil
+	return nil, BlockNode(peerId)
 }
 
 type IsBlockedNodeBridgeInput = models.StringMessage
@@ -65,7 +69,10 @@ func IsBlockedNodeBridge(request proto.Message) (proto.Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	isBlocked := IsBlockedNode(peerId)
+	isBlocked, err := IsBlockedNode(peerId)
+	if err != nil {
+		return nil, err
+	}
 	return &IsBlockedNodeBridgeOutput{
 		Message: isBlocked,
 	}, nil
@@ -74,10 +81,13 @@ func IsBlockedNodeBridge(request proto.Message) (proto.Message, error) {
 type GetBlockedNodesBridgeOutput = models.StringArrayMessage
 
 func GetBlockedNodesBridge(proto.Message) (proto.Message, error) {
-	blockedNodes := GetBlockedNodes()
+	blockedNodes, err := GetBlockedNodes()
+	if err != nil {
+		return nil, err
+	}
 	stringBlockedIds := make([]string, len(blockedNodes))
 	for i, address := range blockedNodes {
 		stringBlockedIds[i] = address.String()
 	}
-	return &GetAllowedNodesBridgeOutput{Message: stringBlockedIds}, nil
+	return &GetBlockedNodesBridgeOutput{Message: stringBlockedIds}, nil
 }
