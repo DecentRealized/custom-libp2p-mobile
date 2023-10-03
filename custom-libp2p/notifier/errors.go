@@ -3,5 +3,5 @@ package notifier
 import "errors"
 
 var (
-	ErrClosed = errors.New("notifier was closed")
+	ErrNotifierClosed = errors.New("notifier was closed")
 )

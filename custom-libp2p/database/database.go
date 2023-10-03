@@ -17,9 +17,6 @@ var _db *badger.DB = nil
 var timerCanceler = make(chan struct{})
 
 func SetDatabaseDirectory(baseDirectory string) error {
-	if _db != nil {
-		return ErrDatabaseRunning
-	}
 	stat, err := os.Stat(baseDirectory)
 	if err != nil {
 		return err

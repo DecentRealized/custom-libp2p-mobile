@@ -14,4 +14,6 @@ func main() {
 	utils.CheckError(err)
 	err = bridge.CreateDartBinding(fmt.Sprintf("%s/custom_libp2p.dart", dartOutDir))
 	utils.CheckError(err)
+	err = bridge.GenerateConstants(fmt.Sprintf("%s/custom_libp2p_constants.dart", dartOutDir))
+	utils.CheckError(err)
 }
