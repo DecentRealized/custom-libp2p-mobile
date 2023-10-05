@@ -78,6 +78,30 @@ func StopDownloadBridge(input proto.Message) (proto.Message, error) {
 	return nil, err
 }
 
+type GetDownloadingFilesBridgeOutput = models.FileMetadataList
+
+func GetDownloadingFilesBridge(proto.Message) (proto.Message, error) {
+	files, err := GetDownloadingFiles()
+	if err != nil {
+		return nil, err
+	}
+	return &GetDownloadingFilesBridgeOutput{
+		FilesMetadata: files,
+	}, nil
+}
+
+type GetUploadingFilesBridgeOutput = models.FileMetadataList
+
+func GetUploadingFilesBridge(proto.Message) (proto.Message, error) {
+	files, err := GetUploadingFiles()
+	if err != nil {
+		return nil, err
+	}
+	return &GetUploadingFilesBridgeOutput{
+		FilesMetadata: files,
+	}, nil
+}
+
 type GetDownloadStatusBridgeInput = models.DownloadRequest
 type GetDownloadStatusBridgeOutput = models.DownloadStatus
 

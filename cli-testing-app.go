@@ -55,6 +55,8 @@ var commands = []command{
 	{"pauseDownload", []string{}, handlePauseDownload, "Pause downloading file with SHA256 from peer"},
 	{"resumeDownload", []string{}, handleResumeDownload, "Resume downloading file with SHA256 from peer"},
 	{"stopDownload", []string{}, handleStopDownload, "Stop downloading file with SHA256 from peer"},
+	{"getUploadingFiles", []string{}, handleGetUploadingFiles, "Get all files which are uploading"},
+	{"getDownloadingFiles", []string{}, handleGetDownloadingFiles, "Get all files which are downloading"},
 	{"getDownloadStatus", []string{}, handleGetDownloadStatus, "Get download status of file with SHA256"},
 	{"flushNotifications", []string{}, handleFlushNotifications, "Flush notifications asynchronously"},
 	{"stopNode", []string{}, handleStopNode, "Stop running node"},
@@ -453,6 +455,26 @@ func handleStopDownload() {
 		fmt.Println(colorRed + fmt.Sprintf("\tError: %v", err) + colorReset)
 		return
 	}
+}
+
+func handleGetUploadingFiles() {
+	files, err := transfer.GetUploadingFiles()
+	if err != nil {
+		fmt.Println(colorRed + fmt.Sprintf("\tError: %v", err) + colorReset)
+		return
+	}
+	fmt.Printf("\t%v\n", files)
+	fmt.Println(colorGreen + "\tSuccess" + colorReset)
+}
+
+func handleGetDownloadingFiles() {
+	files, err := transfer.GetDownloadingFiles()
+	if err != nil {
+		fmt.Println(colorRed + fmt.Sprintf("\tError: %v", err) + colorReset)
+		return
+	}
+	fmt.Printf("\t%v\n", files)
+	fmt.Println(colorGreen + "\tSuccess" + colorReset)
 }
 
 func handleGetDownloadStatus() {

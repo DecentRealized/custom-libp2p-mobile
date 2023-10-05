@@ -1,5 +1,5 @@
 .PHONY: protobuf
-protobufs: protobuf_dart protobuf_go
+protobufs: protobuf_go protobuf_dart
 
 protobuf_deps:
 	export PATH="$PATH":"$HOME/.pub-cache/bin"

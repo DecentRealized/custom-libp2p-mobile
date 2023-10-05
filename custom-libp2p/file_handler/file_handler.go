@@ -61,10 +61,6 @@ func GetFile(path string) (*os.File, error) {
 		return nil, err
 	}
 	openFileCache.Store(path, f)
-	// Seek file to start
-	if err != nil {
-		return nil, err
-	}
 	return f, nil
 }
 

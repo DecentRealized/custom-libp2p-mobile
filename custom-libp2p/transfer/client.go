@@ -25,19 +25,42 @@ type client struct {
 	client    *http.Client
 	transport *http.Transport
 	//downloadingMetafiles *sync.Map
-	//isDownloading        *sync.Map // key = SHA256+fileServer, value = bool
 }
 
 const _downloadingMetafilesKeyBase = "transfer/client/downloadingMetafiles" // key = fileServer/SHA256, value = *FileMetadata
-const _isDownloadingKeyBase = "transfer/client/isDownloading"               // key = fileServer/SHA256, value = bool
 
 // initClient Initializes client
 func initClient(node *models.Node) error {
 	_client.transport = &http.Transport{}
 	_client.transport.RegisterProtocol("libp2p", p2phttp.NewTransport(node, p2phttp.ProtocolOption(protocolID)))
 	_client.client = &http.Client{Transport: _client.transport}
-	// go Download all files isDownloading from database
-	return nil
+	err := database.Range([]byte(_downloadingMetafilesKeyBase), func(key, value []byte) bool {
+		metadata := &models.FileMetadata{}
+		err := proto.Unmarshal(value, metadata)
+		if err != nil {
+			notifier.QueueWarning(&models.Warning{
+				Error: err.Error(),
+				Info:  fmt.Sprintf("Error unmarshaling %s", key),
+			})
+			// Cleanup
+			_ = database.Delete(key)
+		}
+		if metadata.GetClientFileInfo().IsDownloading {
+			peerId, err := peer.Decode(metadata.GetClientFileInfo().FileServer)
+			if err != nil {
+				notifier.QueueWarning(&models.Warning{
+					Error: err.Error(),
+					Info:  fmt.Sprintf("Error decoding %s", key),
+				})
+				// Cleanup
+				_ = database.Delete(key)
+			} else {
+				go downloadFile(metadata.FileSha256, peerId)
+			}
+		}
+		return true
+	})
+	return err
 }
 
 // closeClient Closes client
@@ -80,24 +103,27 @@ func PauseDownload(sha256Sum string, peerId peer.ID) error {
 		return ErrClientNotRunning
 	}
 	metafileDbKey := []byte(filepath.Join(_downloadingMetafilesKeyBase, peerId.String(), sha256Sum))
-	isDownloadingDbKey := []byte(filepath.Join(_isDownloadingKeyBase, peerId.String(), sha256Sum))
-	_, err := database.Load(metafileDbKey)
+	metadataBytes, err := database.Load(metafileDbKey)
 	if err == badger.ErrKeyNotFound {
 		return ErrFileMetadataNotAvailable
 	} else if err != nil {
 		return err
 	}
-	isDownloadingBytes, err := database.Load(isDownloadingDbKey)
-	if err == badger.ErrKeyNotFound {
-		return ErrFileNotDownloading
-	} else if err != nil {
+	metadata := &models.FileMetadata{}
+	err = proto.Unmarshal(metadataBytes, metadata)
+	if err != nil {
 		return err
 	}
-	downloading := isDownloadingBytes[0] == 1
+	downloading := metadata.GetClientFileInfo().IsDownloading
 	if !downloading {
 		return ErrFileNotDownloading
 	}
-	return database.Store(isDownloadingDbKey, []byte{0})
+	metadata.GetClientFileInfo().IsDownloading = false
+	metadataBytes, err = proto.Marshal(metadata)
+	if err != nil {
+		return err
+	}
+	return database.Store(metafileDbKey, metadataBytes)
 }
 
 // ResumeDownload Resumes download
@@ -113,24 +139,27 @@ func ResumeDownload(sha256Sum string, peerId peer.ID) error {
 		return ErrNotAllowedNode
 	}
 	metafileDbKey := []byte(filepath.Join(_downloadingMetafilesKeyBase, peerId.String(), sha256Sum))
-	isDownloadingDbKey := []byte(filepath.Join(_isDownloadingKeyBase, peerId.String(), sha256Sum))
-	_, err = database.Load(metafileDbKey)
+	metadataBytes, err := database.Load(metafileDbKey)
 	if err == badger.ErrKeyNotFound {
 		return ErrFileMetadataNotAvailable
 	} else if err != nil {
 		return err
 	}
-	isDownloadingBytes, err := database.Load(isDownloadingDbKey)
-	if err == badger.ErrKeyNotFound {
-		isDownloadingBytes = []byte{0}
-	} else if err != nil {
+	metadata := &models.FileMetadata{}
+	err = proto.Unmarshal(metadataBytes, metadata)
+	if err != nil {
 		return err
 	}
-	downloading := isDownloadingBytes[0] == 1
+	downloading := metadata.GetClientFileInfo().IsDownloading
 	if downloading {
 		return ErrAlreadyDownloadingFile
 	}
-	err = database.Store(isDownloadingDbKey, []byte{1})
+	metadata.GetClientFileInfo().IsDownloading = true
+	metadataBytes, err = proto.Marshal(metadata)
+	if err != nil {
+		return err
+	}
+	err = database.Store(metafileDbKey, metadataBytes)
 	if err != nil {
 		return err
 	}
@@ -144,7 +173,6 @@ func StopDownload(sha256Sum string, peerId peer.ID) error {
 		return ErrClientNotRunning
 	}
 	metafileDbKey := []byte(filepath.Join(_downloadingMetafilesKeyBase, peerId.String(), sha256Sum))
-	isDownloadingDbKey := []byte(filepath.Join(_isDownloadingKeyBase, peerId.String(), sha256Sum))
 	fileMetadataBytes, err := database.Load(metafileDbKey)
 	if err == badger.ErrKeyNotFound {
 		return ErrFileMetadataNotAvailable
@@ -160,11 +188,33 @@ func StopDownload(sha256Sum string, peerId peer.ID) error {
 	if err != nil {
 		return err
 	}
-	err = database.Delete(isDownloadingDbKey)
-	if err != nil && err != badger.ErrKeyNotFound {
-		return err
-	}
 	return notifyServerStopDownloading(fileMetadata)
+}
+
+// GetDownloadingFiles returns downloading files
+func GetDownloadingFiles() ([]*models.FileMetadata, error) {
+	if !ClientIsRunning() {
+		return nil, ErrClientNotRunning
+	}
+	var unmarshalErr error
+	var downloadingFiles []*models.FileMetadata
+	rangeErr := database.Range([]byte(_downloadingMetafilesKeyBase), func(key []byte, value []byte) bool {
+		downloadingFile := &models.FileMetadata{}
+		err := proto.Unmarshal(value, downloadingFile)
+		if err != nil {
+			unmarshalErr = err
+			return false
+		}
+		downloadingFiles = append(downloadingFiles, downloadingFile)
+		return true
+	})
+	if rangeErr != nil {
+		return nil, rangeErr
+	}
+	if unmarshalErr != nil {
+		return nil, unmarshalErr
+	}
+	return downloadingFiles, nil
 }
 
 // GetDownloadStatus returns Download Status
@@ -173,7 +223,6 @@ func GetDownloadStatus(sha256Sum string, peerId peer.ID) (*models.DownloadStatus
 		return nil, ErrClientNotRunning
 	}
 	metafileDbKey := []byte(filepath.Join(_downloadingMetafilesKeyBase, peerId.String(), sha256Sum))
-	isDownloadingDbKey := []byte(filepath.Join(_isDownloadingKeyBase, peerId.String(), sha256Sum))
 	metadataBytes, err := database.Load(metafileDbKey)
 	if err == badger.ErrKeyNotFound {
 		return nil, ErrFileMetadataNotAvailable
@@ -185,13 +234,7 @@ func GetDownloadStatus(sha256Sum string, peerId peer.ID) (*models.DownloadStatus
 	if err != nil {
 		return nil, err
 	}
-	isDownloadingBytes, err := database.Load(isDownloadingDbKey)
-	if err == badger.ErrKeyNotFound {
-		isDownloadingBytes = []byte{0}
-	} else if err != nil {
-		return nil, err
-	}
-	isDownloading := isDownloadingBytes[0] == 1
+	isDownloading := metadata.GetClientFileInfo().IsDownloading
 	fileSize, err := file_handler.GetFileSize(getPartDownloading(metadata))
 	if err != nil {
 		return nil, err
@@ -258,8 +301,6 @@ func sendMessage(peerId peer.ID, message *models.MessageData) error {
 func (c *client) addDownloadingMetafile(metafile *models.FileMetadata) error {
 	metafileDbKey := []byte(filepath.Join(_downloadingMetafilesKeyBase, metafile.GetClientFileInfo().FileServer,
 		metafile.GetFileSha256()))
-	isDownloadingDbKey := []byte(filepath.Join(_isDownloadingKeyBase, metafile.GetClientFileInfo().FileServer,
-		metafile.GetFileSha256()))
 	_, err := database.Load(metafileDbKey)
 	if err != nil && err != badger.ErrKeyNotFound {
 		return err
@@ -270,17 +311,12 @@ func (c *client) addDownloadingMetafile(metafile *models.FileMetadata) error {
 	if err != nil {
 		return err
 	}
-	err = database.Store(metafileDbKey, metadataBytes)
-	if err != nil {
-		return err
-	}
-	return database.Store(isDownloadingDbKey, []byte{0})
+	return database.Store(metafileDbKey, metadataBytes)
 }
 
 // downloadFile Downloads file
 func downloadFile(sha256Sum string, peerId peer.ID) {
 	metafileDbKey := []byte(filepath.Join(_downloadingMetafilesKeyBase, peerId.String(), sha256Sum))
-	isDownloadingDbKey := []byte(filepath.Join(_isDownloadingKeyBase, peerId.String(), sha256Sum))
 	metadataBytes, err := database.Load(metafileDbKey)
 	if err == badger.ErrKeyNotFound {
 		notifier.QueueWarning(&models.Warning{Error: ErrFileMetadataNotAvailable.Error()})
@@ -303,14 +339,30 @@ func downloadFile(sha256Sum string, peerId peer.ID) {
 		})
 		return
 	}
+	_, err = file.Seek(0, io.SeekEnd)
+	if err != nil {
+		notifier.QueueWarning(&models.Warning{
+			Error: err.Error(),
+			Info:  "Cant load/create file",
+		})
+		return
+	}
 	for {
-		// Check if downloading
-		isDownloadingBytes, err := database.Load(isDownloadingDbKey)
+		// Re-Fetch Metadata
+		metadataBytes, err = database.Load(metafileDbKey)
 		if err == badger.ErrKeyNotFound {
 			notifier.QueueWarning(&models.Warning{Error: ErrFileMetadataNotAvailable.Error()})
 			return
+		} else if err != nil {
+			notifier.QueueWarning(&models.Warning{Error: err.Error()})
+			return
 		}
-		downloading := isDownloadingBytes[0] == 1
+		err = proto.Unmarshal(metadataBytes, metadata)
+		if err != nil {
+			notifier.QueueWarning(&models.Warning{Error: err.Error()})
+			return
+		}
+		downloading := metadata.GetClientFileInfo().IsDownloading
 		if !downloading {
 			return
 		}
@@ -321,25 +373,16 @@ func downloadFile(sha256Sum string, peerId peer.ID) {
 				Error: err.Error(),
 				Info:  fmt.Sprintf("File path: %s", getPartDownloading(metadata)),
 			})
-			err := database.Store(isDownloadingDbKey, []byte{0})
+			err := PauseDownload(sha256Sum, peerId)
 			if err != nil {
 				notifier.QueueWarning(&models.Warning{
 					Error: err.Error(),
-					Info:  "Can not store is downloading",
+					Info:  "Can not stop download",
 				})
 				return
 			}
-			continue
 		}
 		if uint64(fStat.Size()) == metadata.FileSize {
-			err := database.Store(isDownloadingDbKey, []byte{0})
-			if err != nil {
-				notifier.QueueWarning(&models.Warning{
-					Error: err.Error(),
-					Info:  "Can not store is downloading",
-				})
-				return
-			}
 			afterDownloaded(metadata, file)
 			break
 		}
@@ -350,11 +393,11 @@ func downloadFile(sha256Sum string, peerId peer.ID) {
 				Error: err.Error(),
 				Info:  "Can not decode file server",
 			})
-			err = database.Store(isDownloadingDbKey, []byte{0})
+			err = PauseDownload(sha256Sum, peerId)
 			if err != nil {
 				notifier.QueueWarning(&models.Warning{
 					Error: err.Error(),
-					Info:  "Can not store is downloading",
+					Info:  "Can not stop download",
 				})
 				return
 			}
@@ -367,11 +410,11 @@ func downloadFile(sha256Sum string, peerId peer.ID) {
 				Error: err.Error(),
 				Info:  fmt.Sprintf("While downloading File Path: %s", getFilePath(metadata)),
 			})
-			err = database.Store(isDownloadingDbKey, []byte{0})
+			err = PauseDownload(sha256Sum, peerId)
 			if err != nil {
 				notifier.QueueWarning(&models.Warning{
 					Error: err.Error(),
-					Info:  "Can not store is downloading",
+					Info:  "Can not stop download",
 				})
 				return
 			}
@@ -389,11 +432,11 @@ func downloadFile(sha256Sum string, peerId peer.ID) {
 				Error: err.Error(),
 				Info:  fmt.Sprintf("File path: %s", url),
 			})
-			err = database.Store(isDownloadingDbKey, []byte{0})
+			err = PauseDownload(sha256Sum, peerId)
 			if err != nil {
 				notifier.QueueWarning(&models.Warning{
 					Error: err.Error(),
-					Info:  "Can not store is downloading",
+					Info:  "Can not stop download",
 				})
 				return
 			}
@@ -413,11 +456,11 @@ func downloadFile(sha256Sum string, peerId peer.ID) {
 				Info: fmt.Sprintf("Failed To Download %v, from %v",
 					metadata.GetFileName(), metadata.GetClientFileInfo().GetFileServer()),
 			})
-			err = database.Store(isDownloadingDbKey, []byte{0})
+			err = PauseDownload(sha256Sum, peerId)
 			if err != nil {
 				notifier.QueueWarning(&models.Warning{
 					Error: err.Error(),
-					Info:  "Can not store is downloading",
+					Info:  "Can not stop download",
 				})
 				return
 			}
@@ -427,11 +470,11 @@ func downloadFile(sha256Sum string, peerId peer.ID) {
 				Info: fmt.Sprintf("Error in Downloading File %v Server %v responded with: %v",
 					metadata.GetFileName(), metadata.GetClientFileInfo().GetFileServer(), res.Status),
 			})
-			err = database.Store(isDownloadingDbKey, []byte{0})
+			err = PauseDownload(sha256Sum, peerId)
 			if err != nil {
 				notifier.QueueWarning(&models.Warning{
 					Error: err.Error(),
-					Info:  "Can not store is downloading",
+					Info:  "Can not stop download",
 				})
 				return
 			}
@@ -481,21 +524,11 @@ func afterDownloaded(metadata *models.FileMetadata, file *os.File) {
 	}
 	metafileDbKey := []byte(filepath.Join(_downloadingMetafilesKeyBase, metadata.GetClientFileInfo().FileServer,
 		metadata.GetFileSha256()))
-	isDownloadingDbKey := []byte(filepath.Join(_isDownloadingKeyBase, metadata.GetClientFileInfo().FileServer,
-		metadata.GetFileSha256()))
 	err = database.Delete(metafileDbKey)
 	if err != nil {
 		notifier.QueueWarning(&models.Warning{
 			Error: err.Error(),
 			Info:  "Can not delete metafile",
-		})
-		return
-	}
-	err = database.Delete(isDownloadingDbKey)
-	if err != nil {
-		notifier.QueueWarning(&models.Warning{
-			Error: err.Error(),
-			Info:  "Can not delete is downloading",
 		})
 		return
 	}

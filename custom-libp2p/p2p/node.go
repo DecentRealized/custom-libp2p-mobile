@@ -43,11 +43,11 @@ func CreateNode(privateKey crypto.PrivKey, useInternet bool) error {
 	}
 	node = &models.Node{RoutedHost: *routedhost.Wrap(_node, dht), Mdns: mdns}
 	// Initialize Other Modules
-	err = transfer.Init(node)
+	err = database.Init(node)
 	if err != nil {
 		return err
 	}
-	err = database.Init(node)
+	err = transfer.Init(node)
 	if err != nil {
 		return err
 	}

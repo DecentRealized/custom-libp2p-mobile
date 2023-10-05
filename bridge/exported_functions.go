@@ -135,6 +135,14 @@ var bridgeMapping = map[string]BridgeInfo{ // Maps flutter name to golang Bridge
 		input:    &transfer.StopDownloadBridgeInput{},
 		function: transfer.StopDownloadBridge,
 	},
+	"getDownloadingFiles": {
+		function: transfer.GetDownloadingFilesBridge,
+		output:   &transfer.GetDownloadingFilesBridgeOutput{},
+	},
+	"getUploadingFiles": {
+		function: transfer.GetUploadingFilesBridge,
+		output:   &transfer.GetUploadingFilesBridgeOutput{},
+	},
 	"getDownloadStatus": {
 		input:    &transfer.GetDownloadStatusBridgeInput{},
 		function: transfer.GetDownloadStatusBridge,

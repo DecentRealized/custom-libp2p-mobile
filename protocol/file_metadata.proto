@@ -3,6 +3,10 @@ syntax = "proto3";
 package models;
 option go_package = "./models";
 
+message FileMetadataList {
+  repeated FileMetadata files_metadata = 1;
+}
+
 message FileMetadata {
   string file_name = 1;
   string file_sha256 = 2;
@@ -14,8 +18,9 @@ message FileMetadata {
 }
 
 message ClientFileInfo {
-  string base_path = 1;
-  string file_server = 2;
+  bool is_downloading = 1;
+  string base_path = 2;
+  string file_server = 3;
 }
 
 message ServerFileInfo {

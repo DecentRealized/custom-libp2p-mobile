@@ -183,6 +183,32 @@ func StopServingFile(fileSHA256 string) error {
 	return database.Delete(dbKey)
 }
 
+// GetUploadingFiles returns serving files
+func GetUploadingFiles() ([]*models.FileMetadata, error) {
+	if !ServerIsRunning() {
+		return nil, ErrServerNotRunning
+	}
+	var unmarshalErr error
+	var files []*models.FileMetadata
+	rangeErr := database.Range([]byte(_servingMetafilesKeyBase), func(key []byte, value []byte) bool {
+		fileMetadata := &models.FileMetadata{}
+		err := proto.Unmarshal(value, fileMetadata)
+		if err != nil {
+			unmarshalErr = err
+			return false
+		}
+		files = append(files, fileMetadata)
+		return true
+	})
+	if rangeErr != nil {
+		return nil, rangeErr
+	}
+	if unmarshalErr != nil {
+		return nil, unmarshalErr
+	}
+	return files, nil
+}
+
 // handleFileDownloadRequest handles file download requests
 func handleFileDownloadRequest(writer http.ResponseWriter, request *http.Request) {
 	_clientAddr, err := peer.Decode(request.RemoteAddr)
@@ -424,8 +450,9 @@ func handleFileMessage(writer http.ResponseWriter, message *models.Message, peer
 	fileMetadata := message.GetData().GetFileMetadataMessage()
 	fileMetadata.SpecificData = &models.FileMetadata_ClientFileInfo{
 		ClientFileInfo: &models.ClientFileInfo{
-			BasePath:   file_handler.GetDownloadPath(),
-			FileServer: peerId.String(),
+			BasePath:      file_handler.GetDownloadPath(),
+			FileServer:    peerId.String(),
+			IsDownloading: false, // Auto download is false
 		},
 	}
 	fileMetadata.FileName = filepath.Base(getNextAvailableFilePath(fileMetadata)) // Find Next best name
