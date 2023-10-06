@@ -1,6 +1,7 @@
 package p2p
 
 import (
+	"fmt"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/models"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -75,7 +76,7 @@ func CheckConnectionStatusBridge(request proto.Message) (proto.Message, error) {
 	}
 	consString := make([]string, len(connections))
 	for i, connection := range connections {
-		consString[i] = connection.ID()
+		consString[i] = fmt.Sprintf("%s<->%s", connection.RemoteMultiaddr(), connection.LocalMultiaddr())
 	}
 	return &CheckConnectionStatusBridgeOutput{Message: consString}, nil
 }

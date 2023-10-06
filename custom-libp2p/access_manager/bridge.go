@@ -10,7 +10,7 @@ type AllowNodeBridgeInput = models.StringMessage
 
 func AllowNodeBridge(request proto.Message) (proto.Message, error) {
 	peerMessage := request.(*AllowNodeBridgeInput)
-	peerId, err := peer.Decode(peerMessage.String())
+	peerId, err := peer.Decode(peerMessage.Message)
 	if err != nil {
 		return nil, err
 	}
@@ -22,7 +22,7 @@ type IsAllowedNodeBridgeOutput = models.BoolMessage
 
 func IsAllowedNodeBridge(request proto.Message) (proto.Message, error) {
 	peerMessage := request.(*IsAllowedNodeBridgeInput)
-	peerId, err := peer.Decode(peerMessage.String())
+	peerId, err := peer.Decode(peerMessage.Message)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ type BlockNodeBridgeInput = models.StringMessage
 
 func BlockNodeBridge(request proto.Message) (proto.Message, error) {
 	peerMessage := request.(*BlockNodeBridgeInput)
-	peerId, err := peer.Decode(peerMessage.String())
+	peerId, err := peer.Decode(peerMessage.Message)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ type IsBlockedNodeBridgeOutput = models.BoolMessage
 
 func IsBlockedNodeBridge(request proto.Message) (proto.Message, error) {
 	peerMessage := request.(*IsBlockedNodeBridgeInput)
-	peerId, err := peer.Decode(peerMessage.String())
+	peerId, err := peer.Decode(peerMessage.Message)
 	if err != nil {
 		return nil, err
 	}
