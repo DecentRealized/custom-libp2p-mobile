@@ -493,14 +493,6 @@ func afterDownloaded(metadata *models.FileMetadata, file *os.File) {
 		})
 		return
 	}
-	err = os.Rename(getPartDownloading(metadata), getFilePath(metadata))
-	if err != nil {
-		notifier.QueueWarning(&models.Warning{
-			Error: err.Error(),
-			Info:  fmt.Sprintf("File path: %s", getPartDownloading(metadata)),
-		})
-		return
-	}
 	err = file_handler.CloseFile(getPartDownloading(metadata))
 	if err != nil {
 		notifier.QueueWarning(&models.Warning{
@@ -514,6 +506,14 @@ func afterDownloaded(metadata *models.FileMetadata, file *os.File) {
 			Error: err.Error(),
 			Info:  fmt.Sprintf("File path: %s", getFilePath(metadata)),
 		})
+	}
+	err = os.Rename(getPartDownloading(metadata), getFilePath(metadata))
+	if err != nil {
+		notifier.QueueWarning(&models.Warning{
+			Error: err.Error(),
+			Info:  fmt.Sprintf("File path: %s", getPartDownloading(metadata)),
+		})
+		return
 	}
 	err = notifyServerStopDownloading(metadata)
 	if err != nil {
