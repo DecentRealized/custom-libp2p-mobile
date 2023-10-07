@@ -29,7 +29,7 @@ func CreateNode(privateKey crypto.PrivKey, useInternet bool) error {
 			return err
 		}
 	}
-	_node, err := libp2p.New(getOptions(privateKey, useInternet)...) // Critical
+	_node, err := libp2p.New(getOptions(privateKey, useInternet)) // Critical
 	if err != nil {
 		return err
 	}

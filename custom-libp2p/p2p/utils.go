@@ -20,17 +20,17 @@ import (
 	"time"
 )
 
-func getOptions(privateKey crypto.PrivKey, useInternet bool) []libp2p.Option {
-	options := []libp2p.Option{libp2p.Identity(privateKey), libp2p.ForceReachabilityPrivate()}
+func getOptions(privateKey crypto.PrivKey, useInternet bool) libp2p.Option {
+	options := libp2p.ChainOptions(libp2p.Identity(privateKey), libp2p.ForceReachabilityPrivate())
 	if useInternet {
-		options = append(options,
+		options = libp2p.ChainOptions(options,
 			libp2p.EnableHolePunching(holepunch.WithTracer(&HolePunchEventTracer{})),
 			libp2p.EnableAutoRelayWithStaticRelays(utils.GetDefaultBootstrapPeerAddrInfos(),
 				autorelay.WithBackoff(5*time.Second),
 				autorelay.WithMinInterval(5*time.Second),
 				autorelay.WithBootDelay(0)))
 	} else {
-		options = append(options, libp2p.AddrsFactory(noInternetAddressFactory))
+		options = libp2p.ChainOptions(options, libp2p.AddrsFactory(noInternetAddressFactory))
 	}
 	return options
 }

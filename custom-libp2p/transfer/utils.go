@@ -44,6 +44,7 @@ func newHolePunchSyncStream(node *models.Node, peerId peer.ID) {
 	stream, err := node.NewStream(context.TODO(), peerId, holePunchSyncStreamProtocolID)
 	if err != nil {
 		notifier.QueueWarning(&models.Warning{Error: err.Error(), Info: "Failed to create hole punch sync stream"})
+		return
 	}
 	buff := bytes.Repeat([]byte{1}, holePunchPacketSize)
 	for i := 0; i < holePunchRetries; i++ {
@@ -117,7 +118,7 @@ func getNthFilePath(metadata *models.FileMetadata, n uint) string {
 
 // getFileServeUrl path for downloading file
 func getFileServeUrl(metadata *models.FileMetadata) string {
-	size, err := file_handler.GetFileSize(getFilePath(metadata))
+	size, err := file_handler.GetFileSize(getPartDownloading(metadata))
 	if err != nil {
 		notifier.QueueWarning(&models.Warning{
 			Error: err.Error(),

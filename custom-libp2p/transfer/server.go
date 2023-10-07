@@ -321,10 +321,8 @@ func handleGetFile(writer http.ResponseWriter, request *http.Request, metadata *
 	if err != nil {
 		notifier.QueueWarning(&models.Warning{
 			Error: err.Error(),
-			Info:  fmt.Sprintf("Failed to serve file: %v to peer: %v", metadata.FileSha256, request.RemoteAddr),
+			Info:  fmt.Sprintf("Partially served file: %v to peer: %v", metadata.FileSha256, request.RemoteAddr),
 		})
-		writer.WriteHeader(http.StatusInternalServerError)
-		return
 	}
 	notifier.QueueInfo(fmt.Sprintf("Wrote File: %v bytes (%v)", n+int64(offset), metadata.FileSize))
 }
