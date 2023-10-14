@@ -77,5 +77,5 @@ type HolePunchEventTracer struct {
 }
 
 func (t HolePunchEventTracer) Trace(event *holepunch.Event) {
-	notifier.QueueInfo(fmt.Sprintf("Hole punch Evt [%v] From [%v]", event.Type, event.Remote))
+	notifier.QueueInfo(fmt.Sprintf("Hole punch Event: %v (Evt: %v)", event, event.Evt))
 }
