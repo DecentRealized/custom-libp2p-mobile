@@ -30,7 +30,7 @@ type client struct {
 const _downloadingMetafilesKeyBase = "transfer/client/downloadingMetafiles" // key = fileServer/SHA256, value = *FileMetadata
 
 // initClient Initializes client
-func initClient(node *models.Node) error {
+func initClient(node models.Node) error {
 	_client.transport = &http.Transport{}
 	_client.transport.RegisterProtocol("libp2p", p2phttp.NewTransport(node, p2phttp.ProtocolOption(protocolID)))
 	_client.client = &http.Client{Transport: _client.transport}

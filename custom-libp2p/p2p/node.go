@@ -12,7 +12,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
-	routedhost "github.com/libp2p/go-libp2p/p2p/host/routed"
 	"github.com/multiformats/go-multiaddr"
 )
 
@@ -33,15 +32,19 @@ func CreateNode(privateKey crypto.PrivKey, useInternet bool) error {
 	if err != nil {
 		return err
 	}
-	dht, err := newDHTRouting(&_node) // Critical
-	if err != nil {
-		return err
-	}
-	mdns, err := newMDNSService(&_node)
+	//err = newAutoNATClient(&_node)
+	//if err != nil {
+	//	return err
+	//}
+	//dht, err := newDHTRouting(&_node) // Critical
+	//if err != nil {
+	//	return err
+	//}
+	node = _node
+	err = startMdnsService(node)
 	if err != nil {
 		notifier.QueueWarning(&models.Warning{Error: err.Error(), Info: "Failed to create MDNS service"})
 	}
-	node = &models.Node{RoutedHost: *routedhost.Wrap(_node, dht), Mdns: mdns}
 	// Initialize Other Modules
 	err = database.Init(node)
 	if err != nil {
@@ -62,7 +65,7 @@ func StopNode() error {
 	if node == nil {
 		return ErrNodeDoesNotExist
 	}
-	err := node.Mdns.Close()
+	err := stopMdnsService()
 	if err != nil {
 		notifier.QueueWarning(&models.Warning{Error: err.Error(), Info: "Failed to close MDNS service"})
 	}

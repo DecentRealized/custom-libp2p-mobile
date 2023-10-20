@@ -33,7 +33,7 @@ func GetDatabaseDirectory() string {
 	return databaseDirectory
 }
 
-func Init(node *models.Node) error {
+func Init(node models.Node) error {
 	if _db != nil {
 		err := Close()
 		if err != nil {

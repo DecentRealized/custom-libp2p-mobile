@@ -5,14 +5,14 @@ import (
 	"sync"
 )
 
-var _node *models.Node
+var _node models.Node
 var _server = &server{}
 var _serverLock = &sync.Mutex{}
 var _client = &client{}
 var _clientLock = &sync.Mutex{}
 
 // Init initializes transfer service
-func Init(node *models.Node) error {
+func Init(node models.Node) error {
 	_clientLock.Lock()
 	_serverLock.Lock()
 	defer _clientLock.Unlock()

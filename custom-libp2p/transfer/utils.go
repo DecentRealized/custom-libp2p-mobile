@@ -16,7 +16,7 @@ import (
 )
 
 // connectedWithoutRelay check if peer is connected to node without relay
-func connectedWithoutRelay(node *models.Node, _peer peer.ID) bool {
+func connectedWithoutRelay(node models.Node, _peer peer.ID) bool {
 	connectedDirect := false
 	for _, c := range node.Network().ConnsToPeer(_peer) {
 		connectedDirect = connectedDirect || !isRelay(c.RemoteMultiaddr())
@@ -40,7 +40,7 @@ func isRelay(address multiaddr.Multiaddr) bool {
 }
 
 // newHolePunchSyncStream creates new stream for syncing hole punching
-func newHolePunchSyncStream(node *models.Node, peerId peer.ID) {
+func newHolePunchSyncStream(node models.Node, peerId peer.ID) {
 	stream, err := node.NewStream(context.TODO(), peerId, holePunchSyncStreamProtocolID)
 	if err != nil {
 		notifier.QueueWarning(&models.Warning{Error: err.Error(), Info: "Failed to create hole punch sync stream"})

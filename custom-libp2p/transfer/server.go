@@ -29,7 +29,7 @@ type server struct {
 const _servingMetafilesKeyBase = "transfer/server/servingMetafiles" // key: file_SHA256, value: *models.FileMetadata
 
 // initServer initializes the server
-func initServer(node *models.Node) error {
+func initServer(node models.Node) error {
 	node.SetStreamHandler(holePunchSyncStreamProtocolID, handleHolePunchSyncStream)
 	listener, err := gostream.Listen(node, protocolID)
 	if err != nil {
