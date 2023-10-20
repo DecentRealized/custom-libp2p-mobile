@@ -21,7 +21,7 @@ import (
 )
 
 func getOptions(privateKey crypto.PrivKey, useInternet bool) libp2p.Option {
-	options := libp2p.ChainOptions(libp2p.Identity(privateKey), libp2p.ForceReachabilityPrivate())
+	options := libp2p.ChainOptions(libp2p.Identity(privateKey))
 	if useInternet {
 		options = libp2p.ChainOptions(options,
 			libp2p.EnableHolePunching(holepunch.WithTracer(&HolePunchEventTracer{})),
@@ -77,5 +77,5 @@ type HolePunchEventTracer struct {
 }
 
 func (t HolePunchEventTracer) Trace(event *holepunch.Event) {
-	notifier.QueueInfo(fmt.Sprintf("Hole punch Evt [%v] From [%v]", event.Type, event.Remote))
+	notifier.QueueInfo(fmt.Sprintf("Hole punch Event: %v\nEvt: %v", event, event.Evt))
 }
