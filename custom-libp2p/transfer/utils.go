@@ -1,13 +1,10 @@
 package transfer
 
 import (
-	"bytes"
-	"context"
 	"fmt"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/file_handler"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/models"
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/notifier"
-	"github.com/libp2p/go-libp2p/core"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"golang.org/x/exp/slices"
@@ -37,53 +34,6 @@ func isRelay(address multiaddr.Multiaddr) bool {
 		}
 	})
 	return _isRelay
-}
-
-// newHolePunchSyncStream creates new stream for syncing hole punching
-func newHolePunchSyncStream(node models.Node, peerId peer.ID) {
-	stream, err := node.NewStream(context.TODO(), peerId, holePunchSyncStreamProtocolID)
-	if err != nil {
-		notifier.QueueWarning(&models.Warning{Error: err.Error(), Info: "Failed to create hole punch sync stream"})
-		return
-	}
-	buff := bytes.Repeat([]byte{1}, holePunchPacketSize)
-	for i := 0; i < holePunchRetries; i++ {
-		_, err := stream.Write(buff)
-		if err != nil {
-			notifier.QueueWarning(&models.Warning{
-				Error: err.Error(),
-				Info:  "Failed to write to hole punch sync stream",
-			})
-		}
-		_, err = stream.Read(buff)
-		if err != nil {
-			notifier.QueueWarning(&models.Warning{
-				Error: err.Error(),
-				Info:  "Failed to read from hole punch sync stream",
-			})
-		}
-	}
-}
-
-// handleHolePunchSyncStream handles new hole punch stream
-func handleHolePunchSyncStream(stream core.Stream) {
-	buff := bytes.Repeat([]byte{0}, holePunchPacketSize)
-	for i := 0; i < holePunchRetries; i++ {
-		_, err := stream.Read(buff)
-		if err != nil {
-			notifier.QueueWarning(&models.Warning{
-				Error: err.Error(),
-				Info:  "Failed to read from hole punch sync stream",
-			})
-		}
-		_, err = stream.Write(buff)
-		if err != nil {
-			notifier.QueueWarning(&models.Warning{
-				Error: err.Error(),
-				Info:  "Failed to write to hole punch sync stream",
-			})
-		}
-	}
 }
 
 // getPartDownloading filePath
@@ -128,6 +78,12 @@ func getFileServeUrl(metadata *models.FileMetadata) string {
 	}
 	return fmt.Sprintf("libp2p://%v/file?sha256=%v&offset=%v", metadata.GetClientFileInfo().FileServer,
 		metadata.FileSha256, size)
+}
+
+// getFileDeleteUrl path for deleting file
+func getFileDeleteUrl(metadata *models.FileMetadata) string {
+	return fmt.Sprintf("libp2p://%v/file?sha256=%v", metadata.GetClientFileInfo().FileServer,
+		metadata.FileSha256)
 }
 
 // getMessageUrl url for sending message

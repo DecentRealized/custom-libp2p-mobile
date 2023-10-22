@@ -30,7 +30,6 @@ const _servingMetafilesKeyBase = "transfer/server/servingMetafiles" // key: file
 
 // initServer initializes the server
 func initServer(node models.Node) error {
-	node.SetStreamHandler(holePunchSyncStreamProtocolID, handleHolePunchSyncStream)
 	listener, err := gostream.Listen(node, protocolID)
 	if err != nil {
 		return err

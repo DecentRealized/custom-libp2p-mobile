@@ -28,18 +28,11 @@ func CreateNode(privateKey crypto.PrivKey, useInternet bool) error {
 			return err
 		}
 	}
+	peerChan = make(chan peer.AddrInfo, 50)
 	_node, err := libp2p.New(getOptions(privateKey, useInternet)) // Critical
 	if err != nil {
 		return err
 	}
-	//err = newAutoNATClient(&_node)
-	//if err != nil {
-	//	return err
-	//}
-	//dht, err := newDHTRouting(&_node) // Critical
-	//if err != nil {
-	//	return err
-	//}
 	node = _node
 	err = startMdnsService(node)
 	if err != nil {
@@ -73,6 +66,8 @@ func StopNode() error {
 	if err != nil {
 		return err
 	}
+	// Close Peer Channel
+	close(peerChan)
 
 	// Close/Reset All Modules
 	err = notifier.Reset()
@@ -93,6 +88,7 @@ func StopNode() error {
 	}
 
 	node = nil
+	peerChan = nil
 	return nil
 }
 

@@ -11,6 +11,7 @@ import (
 	"github.com/DecentRealized/custom-libp2p-mobile/custom-libp2p/notifier"
 	"github.com/dgraph-io/badger/v4"
 	p2phttp "github.com/libp2p/go-libp2p-http"
+	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"google.golang.org/protobuf/proto"
 	"io"
@@ -274,7 +275,12 @@ func sendMessage(peerId peer.ID, message *models.MessageData) error {
 		return err
 	}
 	url := getMessageUrl(peerId)
-	post, err := _client.client.Post(url, "application/octet-stream", msgReader)
+	request, err := http.NewRequestWithContext(network.WithUseTransient(context.TODO(), "message"),
+		"POST", url, msgReader)
+	if err != nil {
+		return err
+	}
+	post, err := _client.client.Do(request)
 	if err != nil {
 		return err
 	}
@@ -420,13 +426,29 @@ func downloadFile(sha256Sum string, peerId peer.ID) {
 			}
 			continue
 		}
-		// Hole Punch
 		if !connectedWithoutRelay(_node, peerId) {
-			newHolePunchSyncStream(_node, peerId)
+			// TODO Some better logic to prevent stream reset
 		}
 		// Download Request
 		url := getFileServeUrl(metadata)
-		res, err := _client.client.Get(url)
+		request, err := http.NewRequestWithContext(network.WithUseTransient(context.TODO(), "message"),
+			"GET", url, nil)
+		if err != nil {
+			notifier.QueueWarning(&models.Warning{
+				Error: err.Error(),
+				Info:  fmt.Sprintf("File path: %s", url),
+			})
+			err = PauseDownload(sha256Sum, peerId)
+			if err != nil {
+				notifier.QueueWarning(&models.Warning{
+					Error: err.Error(),
+					Info:  "Can not stop download",
+				})
+				return
+			}
+			continue
+		}
+		res, err := _client.client.Do(request)
 		if err != nil {
 			notifier.QueueWarning(&models.Warning{
 				Error: err.Error(),
@@ -536,7 +558,7 @@ func afterDownloaded(metadata *models.FileMetadata, file *os.File) {
 }
 
 func notifyServerStopDownloading(metadata *models.FileMetadata) error {
-	deleteUrl := getFileServeUrl(metadata)
+	deleteUrl := getFileDeleteUrl(metadata)
 	deleteFileRequest, err := http.NewRequest(http.MethodDelete, deleteUrl, nil)
 	if err != nil {
 		return err

@@ -21,16 +21,42 @@ import (
 	"time"
 )
 
+var peerChan chan peer.AddrInfo
+
 func getOptions(privateKey crypto.PrivKey, useInternet bool) libp2p.Option {
 	options := libp2p.ChainOptions(libp2p.Identity(privateKey))
 	if useInternet {
 		options = libp2p.ChainOptions(options,
 			libp2p.Routing(onlineRouting),
+			libp2p.EnableAutoRelayWithPeerSource(
+				func(ctx context.Context, num int) <-chan peer.AddrInfo {
+					go func() {
+						defer close(peerChan)
+						for ; num != 0; num-- {
+							select {
+							case v, ok := <-peerChan:
+								if !ok {
+									return
+								}
+								select {
+								case peerChan <- v:
+								case <-ctx.Done():
+									return
+								}
+							case <-ctx.Done():
+								return
+							}
+						}
+						peerChan = nil
+					}()
+					return peerChan
+				}, autorelay.WithBackoff(5*time.Second),
+				autorelay.WithMinInterval(0),
+				autorelay.WithNumRelays(10),
+				autorelay.WithMinCandidates(20),
+				autorelay.WithMaxCandidates(50)),
 			libp2p.EnableHolePunching(holepunch.WithTracer(&HolePunchEventTracer{})),
-			libp2p.EnableAutoRelayWithStaticRelays(dht.GetDefaultBootstrapPeerAddrInfos(),
-				autorelay.WithBackoff(5*time.Second),
-				autorelay.WithMinInterval(5*time.Second),
-				autorelay.WithBootDelay(0)))
+		)
 	} else {
 		options = libp2p.ChainOptions(options,
 			libp2p.AddrsFactory(noInternetAddressFactory),
@@ -66,6 +92,17 @@ func onlineRouting(node host.Host) (routing.PeerRouting, error) {
 			notifier.QueueWarning(&models.Warning{Error: err.Error(), Info: "Failed to bootstrap DHT"})
 		}
 	}()
+	ipfsDHT.RoutingTable().PeerAdded = func(id peer.ID) {
+		if peerChan == nil {
+			return
+		}
+		findPeer, err := ipfsDHT.FindPeer(context.TODO(), id)
+		if err != nil {
+			notifier.QueueWarning(&models.Warning{Error: err.Error(), Info: "Failed to find address of peer added from DHT"})
+			return
+		}
+		peerChan <- findPeer
+	}
 	return ipfsDHT, nil
 }
 
