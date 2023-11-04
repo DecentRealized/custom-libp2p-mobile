@@ -431,8 +431,7 @@ func downloadFile(sha256Sum string, peerId peer.ID) {
 		}
 		// Download Request
 		url := getFileServeUrl(metadata)
-		request, err := http.NewRequestWithContext(network.WithUseTransient(context.TODO(), "message"),
-			"GET", url, nil)
+		request, err := http.NewRequest("GET", url, nil)
 		if err != nil {
 			notifier.QueueWarning(&models.Warning{
 				Error: err.Error(),

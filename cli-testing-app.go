@@ -438,6 +438,7 @@ func handleResumeDownload() {
 		fmt.Println(colorRed + fmt.Sprintf("\tError: %v", err) + colorReset)
 		return
 	}
+	fmt.Println(colorGreen + "\tSuccess" + colorReset)
 }
 
 func handleStopDownload() {
@@ -455,6 +456,7 @@ func handleStopDownload() {
 		fmt.Println(colorRed + fmt.Sprintf("\tError: %v", err) + colorReset)
 		return
 	}
+	fmt.Println(colorGreen + "\tSuccess" + colorReset)
 }
 
 func handleGetUploadingFiles() {
@@ -492,7 +494,8 @@ func handleGetDownloadStatus() {
 		fmt.Println(colorRed + fmt.Sprintf("\tError: %v", err) + colorReset)
 		return
 	}
-	fmt.Println(status)
+	fmt.Printf("\t%v\n", status)
+	fmt.Println(colorGreen + "\tSuccess" + colorReset)
 }
 
 func handleFlushNotifications() {
